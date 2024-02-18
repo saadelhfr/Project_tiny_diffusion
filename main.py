@@ -30,6 +30,14 @@ losses, frames = trainer_instance.train(
 )
 
 # prepare a directory to store the frames and the losses
+# plot the losses and save the plot as a png
+
+plt.figure(figsize=(10, 5))
+plt.plot(losses)
+plt.xlabel("Epoch")
+plt.ylabel("Loss")
+plt.title("Training Loss")
+plt.savefig("Outputs/loss.png")
 
 
 outdir = "Outputs"
