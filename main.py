@@ -32,6 +32,12 @@ losses, frames = trainer_instance.train(
 # prepare a directory to store the frames and the losses
 # plot the losses and save the plot as a png
 
+
+outdir = "Outputs"
+print("Saving images...")
+imgdir = f"{outdir}/images"
+os.makedirs(imgdir, exist_ok=True)
+
 plt.figure(figsize=(10, 5))
 plt.plot(losses)
 plt.xlabel("Epoch")
@@ -39,11 +45,6 @@ plt.ylabel("Loss")
 plt.title("Training Loss")
 plt.savefig("Outputs/loss.png")
 
-
-outdir = "Outputs"
-print("Saving images...")
-imgdir = f"{outdir}/images"
-os.makedirs(imgdir, exist_ok=True)
 frames = np.stack(frames)
 xmin, xmax = -6, 6
 ymin, ymax = -6, 6
