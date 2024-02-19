@@ -20,8 +20,10 @@ parser.add_argument(
 )
 
 args = parser.parse_args()
+
 digit_tomake = args.digit
 
+savingModel_path = f"./BestModels/best_model{digit_tomake}.pth"
 
 device = torch.device("mps")
 dataset_name = "mnist"
@@ -42,10 +44,11 @@ trainer_instance = Trainer(
     torch.optim.Adam(Model.parameters(), lr=0.001),
     torch.nn.MSELoss(),
     device,
+    save_path=savingModel_path,
 )
 
 losses, frames = trainer_instance.train(
-    num_epochs=100, batch_size=64, gradient_clipthres=1, train_loader=dataset_loader
+    num_epochs=10, batch_size=64, gradient_clipthres=1, train_loader=dataset_loader
 )
 
 # prepare a directory to store the frames and the losses

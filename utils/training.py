@@ -4,14 +4,28 @@ import numpy as np
 import torch
 from tqdm.auto import tqdm
 
+import torch
+import numpy as np
+from tqdm import tqdm
+
 
 class Trainer:
-    def __init__(self, model, noise_scheduler, optimizer, criterion, device):
+    def __init__(
+        self,
+        model,
+        noise_scheduler,
+        optimizer,
+        criterion,
+        device,
+        save_path="best_model.pth",
+    ):
         self.model = model
         self.optimizer = optimizer
         self.criterion = criterion
         self.noise_scheduler = noise_scheduler
         self.device = device
+        self.save_path = save_path  # Path to save the best model
+        self.best_loss = float("inf")  # Initialize the best loss to infinity
 
     def train(
         self,
@@ -26,8 +40,9 @@ class Trainer:
         frames = []
         for epoch in range(num_epochs):
             self.model.train()
-            progress_bar = tqdm(total=len(train_loader))
-            progress_bar.set_description(f"Epoch {epoch + 1}/{num_epochs}")
+            progress_bar = tqdm(
+                total=len(train_loader), desc=f"Epoch {epoch + 1}/{num_epochs}"
+            )
             loss_batch = []
 
             for _, batch in enumerate(train_loader):
@@ -50,16 +65,21 @@ class Trainer:
                 torch.nn.utils.clip_grad_norm_(
                     self.model.parameters(), gradient_clipthres
                 )
-                global_step += 1
                 self.optimizer.step()
-                logs = {"loss": loss.item(), "step": global_step}
-                progress_bar.update(1)
-                progress_bar.set_postfix(logs)
-                loss_batch.append(loss.detach().item())
+                global_step += 1
+                loss_batch.append(loss.item())
+
+            epoch_loss = sum(loss_batch) / len(loss_batch)
+            losses.append(epoch_loss)
+            print(f"the loss for epoch {epoch} is {epoch_loss} ")
+
+            # Check if current epoch loss is lower than the best loss
+            if epoch_loss < self.best_loss:
+                self.best_loss = epoch_loss
+                torch.save(self.model.state_dict(), self.save_path)
+                print(f"New best model saved with loss: {self.best_loss}")
 
             progress_bar.close()
-            losses.append(sum(loss_batch) / len(loss_batch))
-            print(f"the loss for epoch {epoch} is {losses[-1]} ")
 
             if epoch % 10 == 0 or epoch == num_epochs - 1:
                 self.model.eval()
