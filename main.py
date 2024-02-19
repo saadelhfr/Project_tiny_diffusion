@@ -48,7 +48,7 @@ trainer_instance = Trainer(
 )
 
 losses, frames = trainer_instance.train(
-    num_epochs=10, batch_size=64, gradient_clipthres=1, train_loader=dataset_loader
+    num_epochs=100, batch_size=64, gradient_clipthres=1, train_loader=dataset_loader
 )
 
 # prepare a directory to store the frames and the losses

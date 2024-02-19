@@ -3,7 +3,7 @@ import torch.nn as nn
 from torchvision import datasets, transforms
 import os
 import numpy as np
-from layers.model import MLP, Noise_Scheduer
+from layers.model import MLP, Noise_Scheduler
 from layers.positional_embedding import Sinusoidal_embedding_trans
 import matplotlib.pyplot as plt
 from utils.training import Trainer

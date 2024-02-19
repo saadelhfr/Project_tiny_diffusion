@@ -77,7 +77,6 @@ class Trainer:
             if epoch_loss < self.best_loss:
                 self.best_loss = epoch_loss
                 torch.save(self.model.state_dict(), self.save_path)
-                print(f"New best model saved with loss: {self.best_loss}")
 
             progress_bar.close()
 
