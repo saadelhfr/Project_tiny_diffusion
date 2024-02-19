@@ -25,7 +25,7 @@ digit_tomake = args.digit
 
 savingModel_path = f"./BestModels/best_model{digit_tomake}.pth"
 
-device = torch.device("mps")
+device = torch.device("cuda")
 dataset_name = "mnist"
 
 Model = MLP(depth=7, size=128, hidden_dim=128, output_dim=2, device=device)
