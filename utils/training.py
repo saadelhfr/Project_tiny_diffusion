@@ -63,10 +63,10 @@ class Trainer:
 
             if epoch % 10 == 0 or epoch == num_epochs - 1:
                 self.model.eval()
-                sample = torch.randn(1000, 2)
+                sample = torch.randn(28 * 28, self.model.output_dim)
                 timesteps = list(range(len(self.noise_scheduler)))[::-1]
                 for _, t in enumerate(tqdm(timesteps)):
-                    t = torch.from_numpy(np.repeat(t, 1000)).long()
+                    t = torch.from_numpy(np.repeat(t, 28 * 28)).long()
                     with torch.no_grad():
                         residual = self.model(sample, t)
                     sample = self.noise_scheduler.step(residual, t[0], sample)

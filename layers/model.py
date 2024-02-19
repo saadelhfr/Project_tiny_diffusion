@@ -22,23 +22,31 @@ class MLP(nn.Module):
         hidden_dim: int,
         output_dim: int,
         pos_emb: str = "sinusoidal",
+        input_size: int = 2,
     ):
         super(MLP, self).__init__()
+        self.input_size = input_size
         self.depth = depth
+        self.output_dim = output_dim
         self.hidden_dim = hidden_dim
         self.time_embedding = Positional_embedding(size=size, type_=pos_emb, scale=1.0)
         self.positional_embeder_1 = Positional_embedding(
             size=size, type_=pos_emb, scale=25.0
         )
-        self.positional_embeder_2 = Positional_embedding(
-            size=size, type_=pos_emb, scale=25.0
-        )
 
-        self.input_dim = (
-            len(self.time_embedding)
-            + len(self.positional_embeder_1)
-            + len(self.positional_embeder_2)
-        )
+        if self.input_size == 2:
+            self.positional_embeder_2 = Positional_embedding(
+                size=size, type_=pos_emb, scale=25.0
+            )
+
+        if self.input_size == 1:
+            self.input_dim = len(self.time_embedding) + len(self.positional_embeder_1)
+        else:
+            self.input_dim = (
+                len(self.time_embedding)
+                + len(self.positional_embeder_1)
+                + len(self.positional_embeder_2)
+            )
 
         self.MLP = nn.Sequential(
             nn.Linear(self.input_dim, self.hidden_dim),
@@ -50,10 +58,17 @@ class MLP(nn.Module):
         self.MLP.add_module("final_layer", nn.Linear(self.hidden_dim, output_dim))
 
     def forward(self, X, Timestamps):
-        time_embedding = self.time_embedding(Timestamps)
-        pos_embed_1 = self.positional_embeder_1(X[:, 0])
-        pos_embed_2 = self.positional_embeder_2(X[:, 1])
-        X = torch.cat([time_embedding, pos_embed_1, pos_embed_2], dim=-1)
+        if self.input_size == 1:
+
+            time_embedding = self.time_embedding(Timestamps)
+            pos_embed_1 = self.positional_embeder_1(X[:, 0])
+            X = torch.cat([time_embedding, pos_embed_1], dim=-1)
+        else:
+            time_embedding = self.time_embedding(Timestamps)
+            pos_embed_1 = self.positional_embeder_1(X[:, 0])
+            pos_embed_2 = self.positional_embeder_2(X[:, 1])
+
+            X = torch.cat([time_embedding, pos_embed_1, pos_embed_2], dim=-1)
         return self.MLP(X)
 
 
