@@ -2,6 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from .positional_embedding import Positional_embedding
+from .custom_cumprod import custom_cumprod
 
 
 class Block(nn.Module):
@@ -23,20 +24,24 @@ class MLP(nn.Module):
         output_dim: int,
         pos_emb: str = "sinusoidal",
         input_size: int = 2,
+        device="cpu",
     ):
         super(MLP, self).__init__()
+        self.device = torch.device(device)
         self.input_size = input_size
         self.depth = depth
         self.output_dim = output_dim
         self.hidden_dim = hidden_dim
-        self.time_embedding = Positional_embedding(size=size, type_=pos_emb, scale=1.0)
+        self.time_embedding = Positional_embedding(
+            size=size, type_=pos_emb, scale=1.0, device=self.device
+        )
         self.positional_embeder_1 = Positional_embedding(
-            size=size, type_=pos_emb, scale=25.0
+            size=size, type_=pos_emb, scale=25.0, device=self.device
         )
 
         if self.input_size == 2:
             self.positional_embeder_2 = Positional_embedding(
-                size=size, type_=pos_emb, scale=25.0
+                size=size, type_=pos_emb, scale=25.0, device=self.device
             )
 
         if self.input_size == 1:
@@ -72,63 +77,91 @@ class MLP(nn.Module):
         return self.MLP(X)
 
 
-class Noise_Scheduer(nn.Module):
+class Noise_Scheduler(nn.Module):
     def __init__(
         self,
         num_timesteps: int = 1000,
         beta_start: float = 0.0001,
         beta_end: float = 0.02,
         beta_schedule: str = "linear",
+        device="cpu",
     ):
+        super(
+            Noise_Scheduler, self
+        ).__init__()  # Don't forget to call the superclass initializer
+        self.device = torch.device(device)  # Ensure device is a torch.device object
         self.num_timesteps = num_timesteps
+
         if beta_schedule == "linear":
             self.betas = torch.linspace(
-                beta_start, beta_end, num_timesteps, dtype=torch.float32
+                beta_start,
+                beta_end,
+                num_timesteps,
+                dtype=torch.float32,
+                device=self.device,
             )
         elif beta_schedule == "quadratic":
             self.betas = (
                 torch.linspace(
-                    beta_start**0.5, beta_end**0.5, num_timesteps, dtype=torch.float32
+                    beta_start**0.5,
+                    beta_end**0.5,
+                    num_timesteps,
+                    dtype=torch.float32,
+                    device=self.device,
                 )
                 ** 2
             )
         else:
             raise ValueError("Invalid schedule")
+
         self.alphas = 1 - self.betas
-        self.alphas_cumprod = torch.cumprod(self.alphas, axis=0)
+        # Ensure custom_cumprod and subsequent operations are on the correct device
+        self.alphas_cumprod = custom_cumprod(self.alphas.to(self.device), dim=0).to(
+            self.device
+        )
         self.alphas_cumprod_prev = F.pad(self.alphas_cumprod, (1, 0), value=1.0)[
             :-1
-        ]  # The cumulative alphas at the previous timestep
+        ].to(self.device)
 
-        self.sqrt_alphas_cumprod = self.alphas_cumprod**0.5
-        self.sqrt_one_minus_alphas_cumprod = (1 - self.alphas_cumprod) ** 0.5
+        # Pre-calculate other necessary tensors
+        self.sqrt_alphas_cumprod = torch.sqrt(self.alphas_cumprod).to(self.device)
+        self.sqrt_one_minus_alphas_cumprod = torch.sqrt(1 - self.alphas_cumprod).to(
+            self.device
+        )
+        self.sqrt_inv_alphas_cumprod = torch.sqrt(1 / self.alphas_cumprod).to(
+            self.device
+        )
+        self.sqrt_inv_alphas_cumprod_minus_one = torch.sqrt(
+            1 / self.alphas_cumprod - 1
+        ).to(self.device)
 
-        # required for reconstruct_x0
-        self.sqrt_inv_alphas_cumprod = torch.sqrt(1 / self.alphas_cumprod)
-        self.sqrt_inv_alphas_cumprod_minus_one = torch.sqrt(1 / self.alphas_cumprod - 1)
-
-        # required for q_posterior
+        # Calculate coefficients used in posterior mean calculation
         self.posterior_mean_coef1 = (
             self.betas
             * torch.sqrt(self.alphas_cumprod_prev)
             / (1.0 - self.alphas_cumprod)
-        )
+        ).to(self.device)
         self.posterior_mean_coef2 = (
             (1.0 - self.alphas_cumprod_prev)
             * torch.sqrt(self.alphas)
             / (1.0 - self.alphas_cumprod)
-        )
+        ).to(self.device)
 
+    # Make sure to adjust other methods to use self.device where appropriate
     def reconstruct_x0(self, x_t, t, noise):
-        s1 = self.sqrt_inv_alphas_cumprod[t]
-        s2 = self.sqrt_inv_alphas_cumprod_minus_one[t]
+        x_t = x_t.to(self.device)
+        noise = noise.to(self.device)
+        s1 = self.sqrt_inv_alphas_cumprod[t].to(self.device)
+        s2 = self.sqrt_inv_alphas_cumprod_minus_one[t].to(self.device)
         s1 = s1.reshape(-1, 1)
         s2 = s2.reshape(-1, 1)
         return s1 * x_t - s2 * noise
 
     def q_posterior(self, x_0, x_t, t):
-        s1 = self.posterior_mean_coef1[t]
-        s2 = self.posterior_mean_coef2[t]
+        x_0 = x_0.to(self.device)
+        x_t = x_t.to(self.device)
+        s1 = self.posterior_mean_coef1[t].to(self.device)
+        s2 = self.posterior_mean_coef2[t].to(self.device)
         s1 = s1.reshape(-1, 1)
         s2 = s2.reshape(-1, 1)
         mu = s1 * x_0 + s2 * x_t
@@ -143,26 +176,34 @@ class Noise_Scheduer(nn.Module):
             * (1.0 - self.alphas_cumprod_prev[t])
             / (1.0 - self.alphas_cumprod[t])
         )
-        variance = variance.clip(1e-20)
+        variance = variance.clip(1e-20).to(self.device)
         return variance
 
     def step(self, model_output, timestep, sample):
+        model_output = model_output.to(self.device)
+        sample = sample.to(self.device)
         t = timestep
-        pred_original_sample = self.reconstruct_x0(sample, t, model_output)
-        pred_prev_sample = self.q_posterior(pred_original_sample, sample, t)
+        pred_original_sample = self.reconstruct_x0(sample, t, model_output).to(
+            self.device
+        )
+        pred_prev_sample = self.q_posterior(pred_original_sample, sample, t).to(
+            self.device
+        )
 
         variance = 0
         if t > 0:
-            noise = torch.randn_like(model_output)
+            noise = torch.randn_like(model_output).to(self.device)
             variance = (self.get_variance(t) ** 0.5) * noise
 
         pred_prev_sample = pred_prev_sample + variance
-
+        pred_prev_sample = pred_prev_sample.to(self.device)
         return pred_prev_sample
 
     def add_noise(self, x_start, x_noise, timesteps):
-        s1 = self.sqrt_alphas_cumprod[timesteps]
-        s2 = self.sqrt_one_minus_alphas_cumprod[timesteps]
+        x_start = x_start.to(self.device)
+        x_noise = x_noise.to(self.device)
+        s1 = self.sqrt_alphas_cumprod[timesteps].to(self.device)
+        s2 = self.sqrt_one_minus_alphas_cumprod[timesteps].to(self.device)
 
         s1 = s1.reshape(-1, 1)
         s2 = s2.reshape(-1, 1)

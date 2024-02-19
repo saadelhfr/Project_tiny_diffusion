@@ -54,7 +54,33 @@ def dino_dataset(n=8000):
     return TensorDataset(torch.from_numpy(X.astype(np.float32)))
 
 
-def get_dataset(name, n=8000):
+def sample_continuous_subpixel(n_samples: int = 1000, digit: int = 5):
+    density_map = torch.load(f"./Densities/density_map_{digit}.pt")
+    # Flatten and normalize the density map to create a PDF
+    pdf = density_map.flatten() / torch.sum(density_map)
+
+    # Sample indices from this PDF
+    sampled_indices = torch.multinomial(pdf, n_samples, replacement=True)
+
+    # Convert indices to 2D coordinates
+    y_indices = sampled_indices // density_map.size(1)
+    x_indices = sampled_indices % density_map.size(1)
+
+    # Adjust to sample within each pixel's area
+    # Generate random offsets within each pixel's area
+    y_offsets = torch.rand_like(y_indices.float())
+    x_offsets = torch.rand_like(x_indices.float())
+
+    # Combine indices with offsets and normalize to [0, 1] range
+    x_continuous = (x_indices.float() + x_offsets) / density_map.size(1)
+    y_continuous = (y_indices.float() + y_offsets) / density_map.size(0)
+
+    return TensorDataset(torch.stack((x_continuous, y_continuous), dim=1))
+
+
+def get_dataset(name, n=8000, **kwargs):
+    # get the digit if it is mnist
+    digit = kwargs.get("digit", 5)
     if name == "moons":
         return moons_dataset(n)
     elif name == "dino":
@@ -63,5 +89,7 @@ def get_dataset(name, n=8000):
         return line_dataset(n)
     elif name == "circle":
         return circle_dataset(n)
+    elif name == "mnist":
+        return sample_continuous_subpixel(n_samples=n, digit=digit)
     else:
         raise ValueError(f"Unknown dataset: {name}")

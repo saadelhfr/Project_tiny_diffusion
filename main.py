@@ -1,17 +1,36 @@
 import torch
 import os
 import numpy as np
-from layers.model import MLP, Noise_Scheduer
+from layers.model import MLP, Noise_Scheduler
 import matplotlib.pyplot as plt
 from utils.datasets import get_dataset
 from utils.training import Trainer
 
+import argparse
 
-Model = MLP(depth=5, size=128, hidden_dim=128, output_dim=2)
 
-noise_scheduler_instance = Noise_Scheduer()
+parser = argparse.ArgumentParser(
+    description="create png plots a model on a specific digit from the mnist dataset"
+)
+parser.add_argument(
+    "--digit",
+    type=int,
+    default=5,
+    help="The MNIST digit to generate frames for (default: 5)",
+)
 
-dataset_instance = get_dataset("moons")
+args = parser.parse_args()
+digit_tomake = args.digit
+
+
+device = torch.device("mps")
+dataset_name = "mnist"
+
+Model = MLP(depth=7, size=128, hidden_dim=128, output_dim=2, device=device)
+
+noise_scheduler_instance = Noise_Scheduler(device=device)
+
+dataset_instance = get_dataset(dataset_name, n=10000, digit=digit_tomake)
 
 dataset_loader = torch.utils.data.DataLoader(
     dataset_instance, batch_size=64, shuffle=True
@@ -22,7 +41,7 @@ trainer_instance = Trainer(
     noise_scheduler_instance,
     torch.optim.Adam(Model.parameters(), lr=0.001),
     torch.nn.MSELoss(),
-    "cpu",
+    device,
 )
 
 losses, frames = trainer_instance.train(
@@ -33,7 +52,7 @@ losses, frames = trainer_instance.train(
 # plot the losses and save the plot as a png
 
 
-outdir = "Outputs"
+outdir = f"OutputsMnsit2_{digit_tomake}"
 print("Saving images...")
 imgdir = f"{outdir}/images"
 os.makedirs(imgdir, exist_ok=True)
@@ -46,11 +65,17 @@ plt.title("Training Loss")
 plt.savefig("Outputs/loss.png")
 
 frames = np.stack(frames)
-xmin, xmax = -6, 6
-ymin, ymax = -6, 6
+if dataset_name == "mnist":
+    xmin, xmax = 0, 1
+    ymin, ymax = 0, 1
+    s = 1
+else:
+    xmin, xmax = -6, 6
+    ymin, ymax = -6, 6
+    s = 2
 for i, frame in enumerate(frames):
     plt.figure(figsize=(10, 10))
-    plt.scatter(frame[:, 0], frame[:, 1])
+    plt.scatter(frame[:, 0], frame[:, 1], s=s)
     plt.xlim(xmin, xmax)
     plt.ylim(ymin, ymax)
     plt.savefig(f"{imgdir}/{i:04}.png")
