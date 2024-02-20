@@ -39,7 +39,9 @@ nbr_images = args.nbr_images
 digit_tomake = args.digit
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-model_weight_dict = torch.load("./BestModels/best_model7.pth", map_location=device)
+model_weight_dict = torch.load(
+    f"./BestModels/best_model{digit_tomake}.pth", map_location=device
+)
 model = MLP(depth=7, size=128, hidden_dim=128, output_dim=2, device=device)
 model.load_state_dict(model_weight_dict)
 
@@ -92,7 +94,7 @@ for i in range(frames_numpy.shape[0]):
 plt.tight_layout()
 
 # Save the plot as a png
-plt.savefig(directory_outputs + f"frames{digit_tomake}.png")
+plt.savefig(directory_outputs + f"frames{digit_tomake}_{nbr_samples}.png")
 
 # now we change this into an image
 
@@ -128,5 +130,5 @@ for i in range(num_frames):
 
 plt.tight_layout()
 plt.savefig(
-    directory_outputs + f"frames_as_images{digit_tomake}.png"
+    directory_outputs + f"frames_as_images{digit_tomake}_{nbr_samples}.png"
 )  # Adjust path as needed
