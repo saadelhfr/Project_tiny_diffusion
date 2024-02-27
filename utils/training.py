@@ -47,9 +47,8 @@ class Trainer:
 
             for _, batch in enumerate(train_loader):
                 self.optimizer.zero_grad()
-                batch_data = batch[0].to(self.device)
+                batch_data = batch.to(self.device)
                 noise = torch.randn_like(batch_data)
-
                 timesteps = torch.randint(
                     0, self.noise_scheduler.num_timesteps, (batch_data.shape[0],)
                 ).long()
