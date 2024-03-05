@@ -8,7 +8,8 @@ from utils.training import Trainer
 from tqdm.auto import tqdm
 import argparse
 
-directory_outputs = "./Model_Tests_2/"
+directory_outputs = "./Bigger_Model_Tests/"
+os.makedirs(directory_outputs, exist_ok=True)
 
 parser = argparse.ArgumentParser(
     description="create png plots a model on a specific digit from the mnist dataset"
@@ -42,21 +43,22 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model_weight_dict = torch.load(
     f"./BestModels/best_model{digit_tomake}.pth", map_location=device
 )
-model = MLP(depth=7, size=128, hidden_dim=128, output_dim=2, device=device)
+model = MLP(depth=10, size=256, hidden_dim=256, output_dim=2, device=device)
 model.load_state_dict(model_weight_dict)
+model.to(device)
 
 
-noise_scheduler_instance = Noise_Scheduler(device=device)
+noise_scheduler_instance = Noise_Scheduler(beta_schedule="quadratic", device=device)
 
 model.eval()
 
 frames = []
 
 for i in range(nbr_images):
-    sample = torch.randn(nbr_samples, 2)
+    sample = torch.randn(nbr_samples, 2).to(device)
     timesteps = list(range(len(noise_scheduler_instance)))[::-1]
     for _, t in enumerate(tqdm(timesteps, desc=f"Image {i}")):
-        t = torch.from_numpy(np.repeat(t, nbr_samples)).long()
+        t = torch.from_numpy(np.repeat(t, nbr_samples)).long().to(device)
         with torch.no_grad():
             residual = model(sample, t)
         sample = noise_scheduler_instance.step(residual, t[0], sample)

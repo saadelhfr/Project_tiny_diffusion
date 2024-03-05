@@ -14,7 +14,7 @@ from layers.positional_embedding import Positional_embedding
 
 savingModel_path = "./BestModels/best3_model.pth"
 
-device = torch.device("cpu")
+device = torch.device("cuda")
 dataset_name = "mnist"
 
 
