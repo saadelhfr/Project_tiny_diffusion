@@ -43,14 +43,25 @@ class MLP(nn.Module):
             self.positional_embeder_2 = Positional_embedding(
                 size=size, type_=pos_emb, scale=25.0, device=self.device
             )
+        if self.input_size == 3:
+            self.positional_embeder_3 = Positional_embedding(
+                size=size, type_=pos_emb, scale=25.0, device=self.device
+            )
 
         if self.input_size == 1:
             self.input_dim = len(self.time_embedding) + len(self.positional_embeder_1)
+        elif self.input_size == 2:
+            self.input_dim = (
+                len(self.time_embedding)
+                + len(self.positional_embeder_1)
+                + len(self.positional_embeder_2)
+            )
         else:
             self.input_dim = (
                 len(self.time_embedding)
                 + len(self.positional_embeder_1)
                 + len(self.positional_embeder_2)
+                + len(self.positional_embeder_3)
             )
 
         self.MLP = nn.Sequential(
@@ -68,12 +79,20 @@ class MLP(nn.Module):
             time_embedding = self.time_embedding(Timestamps)
             pos_embed_1 = self.positional_embeder_1(X[:, 0])
             X = torch.cat([time_embedding, pos_embed_1], dim=-1)
-        else:
+        elif self.input_size == 2:
             time_embedding = self.time_embedding(Timestamps)
             pos_embed_1 = self.positional_embeder_1(X[:, 0])
             pos_embed_2 = self.positional_embeder_2(X[:, 1])
 
             X = torch.cat([time_embedding, pos_embed_1, pos_embed_2], dim=-1)
+        else:
+            time_embedding = self.time_embedding(Timestamps)
+            pos_embed_1 = self.positional_embeder_1(X[:, 0])
+            pos_embed_2 = self.positional_embeder_2(X[:, 1])
+            pos_embed_3 = self.positional_embeder_3(X[:, 2])
+            X = torch.cat(
+                [time_embedding, pos_embed_1, pos_embed_2, pos_embed_3], dim=-1
+            )
         return self.MLP(X)
 
 
@@ -111,6 +130,18 @@ class Noise_Scheduler(nn.Module):
                 )
                 ** 2
             )
+        elif beta_schedule == "sinusoidal":
+            timesteps = torch.linspace(
+                0,
+                num_timesteps - 1,
+                steps=num_timesteps,
+                dtype=torch.float32,
+                device=self.device,
+            )
+            self.betas = beta_start + (beta_end - beta_start) * 0.5 * (
+                1 + torch.cos(torch.pi * timesteps / (num_timesteps - 1))
+            )
+
         else:
             raise ValueError("Invalid schedule")
 
@@ -202,13 +233,17 @@ class Noise_Scheduler(nn.Module):
     def add_noise(self, x_start, x_noise, timesteps):
         x_start = x_start.to(self.device)
         x_noise = x_noise.to(self.device)
-        s1 = self.sqrt_alphas_cumprod[timesteps].to(self.device)
-        s2 = self.sqrt_one_minus_alphas_cumprod[timesteps].to(self.device)
+        original_dim = x_start.shape
+        if len(original_dim) == 2:
+            x_start.unsqueeze(-1)
+            x_noise.unsqueeze(-1)
+        s1 = self.sqrt_alphas_cumprod[timesteps].unsqueeze(-1).unsqueeze(-1)
+        s2 = self.sqrt_one_minus_alphas_cumprod[timesteps].unsqueeze(-1).unsqueeze(-1)
 
-        s1 = s1.reshape(-1, 1)
-        s2 = s2.reshape(-1, 1)
-
-        return s1 * x_start + s2 * x_noise
+        out = s1 * x_start + s2 * x_noise
+        if len(original_dim) == 2:
+            out.squeeze()
+        return out
 
     def __len__(self):
         return self.num_timesteps

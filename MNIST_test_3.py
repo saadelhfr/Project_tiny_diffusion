@@ -102,5 +102,3 @@ np.save(f"{outdir}/loss.npy", np.array(losses))
 
 print("Saving frames...")
 np.save(f"{outdir}/frames.npy", frames)
-
-# write unite test for the model
