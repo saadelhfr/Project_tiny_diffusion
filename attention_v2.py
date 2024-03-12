@@ -35,29 +35,29 @@ class CombinedDataset(Dataset):
         return item1, item2
 
 
-dataset_moons = get_dataset("moons", 50000)
-data_moons2 = get_dataset("moons", 50000)
+dataset_moons = get_dataset("moons", 100000)
+data_moons2 = get_dataset("moons", 100000)
 combined_dataset = CombinedDataset(dataset_moons, data_moons2)
 
-datset_circle = get_dataset("circle", 50000)
-data_circle2 = get_dataset("circle", 50000)
+datset_circle = get_dataset("circle", 100000)
+data_circle2 = get_dataset("circle", 100000)
 combined_circles = CombinedDataset(datset_circle, data_circle2)
 
-datset_line = get_dataset("dino", 50000)
-datste_line2 = get_dataset("dino", 50000)
+datset_line = get_dataset("dino", 100000)
+datste_line2 = get_dataset("dino", 100000)
 combined_lines = CombinedDataset(datset_line, datste_line2)
 
-data_nine = get_dataset("mnist", n=50000, digit=9)
-data_nine2 = get_dataset("mnist", n=50000, digit=9)
+data_nine = get_dataset("mnist", n=100000, digit=9)
+data_nine2 = get_dataset("mnist", n=100000, digit=9)
 data_nine_comb = CombinedDataset(data_nine, data_nine2)
 
-data_five = get_dataset("mnist", n=50000, digit=5)
-data_five2 = get_dataset("mnist", n=50000, digit=5)
+data_five = get_dataset("mnist", n=100000, digit=5)
+data_five2 = get_dataset("mnist", n=100000, digit=5)
 data_five_comb = CombinedDataset(data_five, data_five2)
 
-concat = ConcatDataset([combined_dataset, combined_lines, combined_circles])
+concat = ConcatDataset([combined_lines])
 batch_size = 250
-length_data = 50000 // 250
+length_data = 100000 // 250
 data_loader = DataLoader(concat, batch_size=batch_size, shuffle=False)
 
 attention_model = RollingAttention2(

@@ -6,6 +6,7 @@ from tqdm.auto import tqdm
 import torch
 import numpy as np
 from tqdm import tqdm
+import ot
 
 
 class Trainer:
@@ -287,8 +288,8 @@ class Trainer:
                 if prev_batch is None or j % len_data == 0:
                     self.attention_model.reset_history()
                     unused_prev_batch = batch[1][0]
-                    prev_batch = torch.randn_like(
-                        unused_prev_batch
+                    prev_batch = (
+                        torch.randn_like(unused_prev_batch) * 0.1
                     )  # if random.uniform(0, 1) < reset_probs:
                 # self.attention_model.reset_history()
                 # unused_prev_batch = batch[1][0].to(self.device)
@@ -314,7 +315,21 @@ class Trainer:
                 prediction = self.model(
                     noisy_data, timesteps, self.attention_model
                 )  # forward pass
-                loss = self.criterion(prediction, noise)  # compute the loss
+                ## Sample From Data
+                prev_batch = noisy_data.detach()
+                for _, t in enumerate(timesteps_gen):
+                    t_tensor = torch.full((batch_size,), t, dtype=torch.long)
+
+                    prev_batch = self.noise_scheduler.step(
+                        prediction, t_tensor[0], prev_batch
+                    )
+
+                loss = self.criterion(
+                    prediction, noise
+                ) + 0.2 * ot.sliced_wasserstein_distance(
+                    prev_batch, batch_data, n_projections=100, seed=10
+                )
+                # compute the loss
                 loss.backward()
 
                 ## Sample From Data
@@ -363,7 +378,7 @@ class Trainer:
         timesteps = list(range(len(self.noise_scheduler)))[::-1]
 
         batch_samples = []
-        batch_prev = torch.randn((batch_size, self.model.input_size))
+        batch_prev = torch.randn((batch_size, self.model.input_size)) * 0.1
         for _ in tqdm(range(num_batches)):
 
             sample = torch.randn(batch_size, self.model.output_dim)
