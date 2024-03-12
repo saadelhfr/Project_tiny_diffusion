@@ -1,3 +1,4 @@
+from os import times
 from numpy import random
 import torch
 import torch.nn as nn
@@ -68,8 +69,8 @@ class Seq2Seq(nn.Module):
             device=self.device,
         )
 
-    def forward(self, X, Timestamps):
-        # X of shape (batch_size , seqlength , 3 )
+    def forward(self, X, Timestamps, target_tensor=None):
+        # X of shape (batch_size , seqlength , 1 )
         # Timestamps of shape (batch_size , 1 )
         if len(X.shape) == 2:
             X = X.unsqueeze(0)
@@ -82,7 +83,6 @@ class Seq2Seq(nn.Module):
         if self.input_size == 1:
 
             pos_embed_1 = self.positional_embeder_1(X[:, :, 0])
-            time_embedding = self.time_embedding(Timestamps)
             X = torch.cat([time_embedding, pos_embed_1], dim=-1)
         elif self.input_size == 2:
             pos_embed_1 = self.positional_embeder_1(X[:, :, 0])
@@ -97,8 +97,17 @@ class Seq2Seq(nn.Module):
                 [time_embedding, pos_embed_1, pos_embed_2, pos_embed_3], dim=-1
             )
 
+        if target_tensor is not None:
+            target_embed1 = self.positional_embeder_1(target_tensor[:, :, 0])
+            target_embed2 = self.positional_embeder_2(target_tensor[:, :, 1])
+            embed_target = torch.cat(
+                [time_embedding, target_embed1, target_embed2], dim=-1
+            )
+        else:
+            embed_target = None
+
         hidden, cell = self.encoder(X)
-        output = self.decoder(hidden, cell, seq_length, batch_size)
+        output = self.decoder(hidden, cell, seq_length, batch_size, embed_target)
 
         return output
 
@@ -123,13 +132,14 @@ class Decoder(nn.Module):
         output_dim,
         num_layers,
         device,
-        use_learned_vector=False,
+        use_learned_vector=True,
     ):
         self.input_dim = input_dim
         super(Decoder, self).__init__()
         self.lstm = nn.LSTM(input_dim, input_dim, num_layers, batch_first=True).to(
             device
         )
+
         self.fc = nn.Linear(input_dim, output_dim).to(device)
 
         self.use_learned_vector = use_learned_vector
@@ -138,13 +148,12 @@ class Decoder(nn.Module):
         # Initialize the learned vector as a parameter, if required
         if self.use_learned_vector:
             self.initial_vector = nn.Parameter(torch.randn(1, 1, input_dim))
+            print(self.initial_vector.shape)
 
     def forward(self, hidden, cell, seq_length, batch_size, target_tensor=None):
         if self.use_learned_vector:
             # Use the learned initial vector as the first input
-            decoder_input = self.initial_vector.unsqueeze(0).repeat(
-                batch_size, 1, self.input_dim
-            )
+            decoder_input = self.initial_vector.repeat(batch_size, 1, 1)
         else:
             # Use zeros as the initial input for the first timestep
             decoder_input = torch.zeros(

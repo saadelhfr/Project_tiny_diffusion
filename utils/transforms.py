@@ -26,8 +26,8 @@ class ImageToNormalizedCoordinatesTransform:
                     continue  # Skip this pixel if we are keeping non-zero pixels only and this pixel's intensity is 0
 
                 # Normalize coordinates to be in the range [0, 1]
-                x_normalized = x / (W - 1)
-                y_normalized = y / (H - 1)
+                x_normalized = x
+                y_normalized = y
                 result.append((x_normalized, y_normalized, intensity.item()))
 
         # Convert the result list to a tensor

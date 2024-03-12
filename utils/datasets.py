@@ -39,7 +39,10 @@ def circle_dataset(n=8000):
 
 
 def dino_dataset(n=8000):
-    df = pd.read_csv("static/DatasaurusDozen.tsv", sep="\t")
+    df = pd.read_csv(
+        "/Data/saadelhfr/MAP583/Project_tiny_diffusion/utils/static/DatasaurusDozen.tsv",
+        sep="\t",
+    )
     df = df[df["dataset"] == "dino"]
 
     rng = np.random.default_rng(42)
@@ -68,14 +71,14 @@ def sample_continuous_subpixel(n_samples: int = 1000, digit: int = 5):
 
     # Adjust to sample within each pixel's area
     # Generate random offsets within each pixel's area
-    y_offsets = torch.rand_like(y_indices.float())
-    x_offsets = torch.rand_like(x_indices.float())
+    y_offsets = torch.randn_like(y_indices.float()) * 0.9
+    x_offsets = torch.randn_like(x_indices.float()) * 0.9
 
     # Combine indices with offsets and normalize to [0, 1] range
     x_continuous = (x_indices.float() + x_offsets) / density_map.size(1)
     y_continuous = (y_indices.float() + y_offsets) / density_map.size(0)
 
-    return TensorDataset(torch.stack((x_continuous, y_continuous), dim=1))
+    return TensorDataset(torch.stack((x_continuous, -y_continuous), dim=1))
 
 
 def get_dataset(name, n=8000, **kwargs):

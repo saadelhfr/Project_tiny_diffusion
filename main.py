@@ -28,9 +28,9 @@ savingModel_path = f"./BestModels/best_model{digit_tomake}.pth"
 device = torch.device("cuda")
 dataset_name = "mnist"
 
-Model = MLP(depth=10, size=256, hidden_dim=256, output_dim=2, device=device)
+Model = MLP(depth=10, size=256, hidden_dim=256, output_dim=2, device="cuda")
 
-noise_scheduler_instance = Noise_Scheduler(beta_schedule="quadratic", device=device)
+noise_scheduler_instance = Noise_Scheduler(beta_schedule="quadratic", device="cuda")
 
 dataset_instance = get_dataset(dataset_name, n=100000, digit=digit_tomake)
 
