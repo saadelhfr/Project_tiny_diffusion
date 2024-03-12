@@ -316,7 +316,7 @@ class Trainer:
                     noisy_data, timesteps, self.attention_model
                 )  # forward pass
                 ## Sample From Data
-                prev_batch = noisy_data.detach()
+                prev_batch = noisy_data
                 for _, t in enumerate(timesteps_gen):
                     t_tensor = torch.full((batch_size,), t, dtype=torch.long)
 
