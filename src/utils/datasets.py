@@ -1,7 +1,8 @@
+import os
 import numpy as np
 import pandas as pd
 import torch
-
+from config import PROJECT_ROOT
 from sklearn.datasets import make_moons
 from torch.utils.data import TensorDataset
 
@@ -40,7 +41,7 @@ def circle_dataset(n=8000):
 
 def dino_dataset(n=8000):
     df = pd.read_csv(
-        "/Data/saadelhfr/MAP583/Project_tiny_diffusion/Data/static/DatasaurusDozen.tsv",
+        os.path.join(PROJECT_ROOT, "Data/static/DatasaurusDozen.tsv"),
         sep="\t",
     )
     df = df[df["dataset"] == "dino"]
@@ -57,10 +58,11 @@ def dino_dataset(n=8000):
     return TensorDataset(torch.from_numpy(X.astype(np.float32)))
 
 
-def sample_continuous_subpixel(n_samples: int = 1000, digit: int = 5):
-    density_map = torch.load(
-        f"/Data/saadelhfr/MAP583/Project_tiny_diffusion/Data/Densities/density_map_{digit}.pt"
-    )
+def sample_continuous_subpixel(
+    n_samples: int = 1000,
+    path_to_density=os.path.join(PROJECT_ROOT, "Data/Densities/density_map_0.pt"),
+):
+    density_map = torch.load(path_to_density)
     # Flatten and normalize the density map to create a PDF
     pdf = density_map.flatten() / torch.sum(density_map)
 
@@ -85,7 +87,7 @@ def sample_continuous_subpixel(n_samples: int = 1000, digit: int = 5):
 
 def get_dataset(name, n=8000, **kwargs):
     # get the digit if it is mnist
-    digit = kwargs.get("digit", 5)
+    path = kwargs.get("path", 5)
     if name == "moons":
         return moons_dataset(n)
     elif name == "dino":
@@ -95,6 +97,6 @@ def get_dataset(name, n=8000, **kwargs):
     elif name == "circle":
         return circle_dataset(n)
     elif name == "mnist":
-        return sample_continuous_subpixel(n_samples=n, digit=digit)
+        return sample_continuous_subpixel(n_samples=n, path_to_density=path)
     else:
         raise ValueError(f"Unknown dataset: {name}")
