@@ -1,10 +1,8 @@
 import torch
 import os
 import numpy as np
-from layers.model import MLP, Noise_Scheduler
+from src.layers import MLP, Noise_Scheduler
 import matplotlib.pyplot as plt
-from utils.datasets import get_dataset
-from utils.training import Trainer
 from tqdm.auto import tqdm
 import argparse
 

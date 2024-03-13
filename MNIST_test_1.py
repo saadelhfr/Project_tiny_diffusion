@@ -1,13 +1,11 @@
 import torch
-import torch.nn as nn
 from torchvision import datasets, transforms
 import os
 import numpy as np
-from layers.model import MLP, Noise_Scheduer
-from layers.positional_embedding import Sinusoidal_embedding_trans
+from src.layers import MLP, Noise_Scheduer
 import matplotlib.pyplot as plt
-from utils.training import Trainer
-from utils.transforms import MNISTToFlattenedTransform
+from src.utils.training import Trainer
+from src.utils.transforms import MNISTToFlattenedTransform
 
 # download the MNIST :
 
@@ -19,10 +17,10 @@ transform_pipeline = transforms.Compose(
 
 
 Mnist_train = datasets.MNIST(
-    root="./data_transformed", train=True, transform=transform_pipeline, download=True
+    root="./data_MNIST_transformed", train=True, transform=transform_pipeline, download=True
 )
 Mnist_test = datasets.MNIST(
-    root="./data_transformed", train=False, transform=transform_pipeline, download=True
+    root="./data_MNIST_transformed", train=False, transform=transform_pipeline, download=True
 )
 
 # tak the first image  :

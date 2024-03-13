@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="SshConfigs">
+    <configs>
+      <sshConfig authType="PASSWORD" host="sitelle.polytechnique.fr" id="8171bd46-d71e-4a66-a19c-99e6796f8a1f" port="22" nameFormat="DESCRIPTIVE" username="saad.el-hafre" useOpenSSHConfig="true" />
+    </configs>
+  </component>
+</project>

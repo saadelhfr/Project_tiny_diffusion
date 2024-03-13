@@ -1,16 +1,7 @@
 from torch.utils.data import TensorDataset
-import torch
-import torch.nn as nn
-from torchvision import datasets, transforms
-import numpy as np
-from layers.model import *
-from utils.transforms import ImageToNormalizedCoordinatesTransform
-import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
-from torchvision.transforms import ToTensor
-from layers.seq2seq import Seq2Seq
-from utils.datasets import get_dataset
-from utils.training import *
+from src.layers import Seq2Seq
+from src.utils.datasets import get_dataset
 
 torch.manual_seed(64)
 # Variable intialisation
@@ -21,7 +12,7 @@ OUTPUT_DIM = 2
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 INPUT_SIZE = 2
 
-PATH = "Seq2Seq.pth"
+PATH = "Seq2Seq_LSTM.pth"
 
 
 dataset_moons = get_dataset("moons", 50000)

@@ -1,12 +1,11 @@
+from src.layers.rolling_attention import MLP_Rolling_attention2, RollingAttention2
+from src.layers.model import Noise_Scheduler
+from src.utils.training import Trainer
+from torch.utils.data import DataLoader, Dataset, ConcatDataset
+from src.utils.datasets import get_dataset
+from itertools import chain
 import torch
 import torch.nn as nn
-import numpy as np
-from layers.model import *
-from layers.rolling_attention import MLP_Rolling_attention2, RollingAttention2
-from torch.utils.data import DataLoader, Dataset, ConcatDataset
-from utils.datasets import get_dataset
-from utils.training import *
-from itertools import chain
 
 torch.manual_seed(64)
 # Variable intialisation
@@ -17,7 +16,7 @@ OUTPUT_DIM = 2
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 INPUT_SIZE = 2
 
-PATH = "Seq2Seq.pth"
+PATH = "Seq2Seq_LSTM.pth"
 
 
 class CombinedDataset(Dataset):
@@ -55,7 +54,7 @@ data_five = get_dataset("mnist", n=100000, digit=5)
 data_five2 = get_dataset("mnist", n=100000, digit=5)
 data_five_comb = CombinedDataset(data_five, data_five2)
 
-concat = ConcatDataset([combined_lines])
+concat = ConcatDataset([combined_lines, combined_dataset])
 batch_size = 250
 length_data = 100000 // 250
 data_loader = DataLoader(concat, batch_size=batch_size, shuffle=False)
@@ -71,7 +70,7 @@ Model = MLP_Rolling_attention2(
     attention_module=attention_model,
     device=DEVICE,
 )
-noise_scheduler_instance = Noise_Scheduler(beta_schedule="cosine", device=DEVICE)
+noise_scheduler_instance = Noise_Scheduler(beta_schedule="quadratic", device=DEVICE)
 
 combined_params = chain(Model.parameters(), attention_model.parameters())
 
@@ -93,7 +92,7 @@ trainer_instance = Trainer(
 
 print(len(data_loader))
 losses, frames = trainer_instance.train_attention2(
-    num_epochs=100,
+    num_epochs=50,
     batch_size=250,
     gradient_clipthres=1.0,
     len_data=length_data,

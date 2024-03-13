@@ -1,18 +1,13 @@
 import torch
-import torch.nn as nn
 from torchvision import datasets, transforms
 import os
 import numpy as np
-from layers.model import MLP, Noise_Scheduler
-from layers.positional_embedding import Sinusoidal_embedding_trans
+from src.layers import MLP, Noise_Scheduler
 import matplotlib.pyplot as plt
-from utils.training import Trainer
-from utils.transforms import MNISTToFlattenedTransform
-from utils.datasets import get_dataset
-import argparse
-from layers.positional_embedding import Positional_embedding
+from src.utils.training import Trainer
+from src.utils.transforms import MNISTToFlattenedTransform
 
-savingModel_path = "./BestModels/best3_model.pth"
+savingModel_path = "Outputs/BestModels/best3_model.pth"
 
 device = torch.device("cuda")
 dataset_name = "mnist"
@@ -25,10 +20,10 @@ transform_pipeline = transforms.Compose(
 
 
 Mnist_train = datasets.MNIST(
-    root="./data_transformed", transform=coords_transform, train=True, download=True
+    root="./data_MNIST_transformed", transform=coords_transform, train=True, download=True
 )
 Mnist_test = datasets.MNIST(
-    root="./data_transformed", transform=coords_transform, train=False, download=True
+    root="./data_MNIST_transformed", transform=coords_transform, train=False, download=True
 )
 
 imagesList = [Mnist_train[i][0].squeeze() for i in range(len(Mnist_train))]

@@ -1,0 +1,105 @@
+from typing import Dict, Any
+
+from src.Trainers.Attention_trainer import AttentionTrainer
+from src.Trainers.Old_attention_trainer import AttentionTrainerOld
+from src.Trainers.Residual_only_trainer import TrainerResildualOnly
+from src.layers.rolling_attention import (
+    MLP_Rolling_attention2,
+    RollingAttention2,
+    MLP_Rolling_attention,
+    RollingAttention,
+)
+from src.layers.seq2seq import Seq2Seq
+from src.layers.model import MLP, Noise_Scheduler
+import torch
+
+
+class TinyDiffusion:
+    def __init__(
+        self,
+        model_name: str,
+        model_params: Dict[str, Any],
+        train_params: Dict[str, Any],
+        device: torch.device,
+    ):
+        self.model_name = model_name
+        self.model_params = model_params
+        self.train_params = train_params
+        self.initialise_model(model_name)
+        self.initialise_trainer(model_name)
+        self.diffusion_model = Noise_Scheduler(
+            **self.model_params["Diffusion_Process_params"]
+        )
+        self.device = device
+        self.optimizer = torch.optim.AdamW(
+            self.weights_models,
+            lr=self.train_params["learning_rate"],
+            weight_decay=self.train_params["weight_decay"],
+        )
+        self.criterion = self.train_params["criterion"]
+
+    def initialise_trainer(self, model_name):
+        if model_name == "Residual_only":
+            self.trainer = TrainerResildualOnly(
+                model_name,
+                self.model,
+                self.diffusion_model,
+                self.optimizer,
+                self.criterion,
+                self.device,
+                self.train_params,
+            )
+        elif model_name == "Residual_with_attention":
+            models_dict = {"model": self.model, "attention": self.attention}
+            self.trainer = AttentionTrainer(
+                model_name,
+                models_dict,
+                self.diffusion_model,
+                self.optimizer,
+                self.criterion,
+                self.device,
+                self.train_params,
+            )
+
+        elif model_name == "Residual_with_old_attention":
+            models_dict = {"model": self.model, "attention": self.attention}
+            self.trainer = AttentionTrainerOld(
+                model_name,
+                models_dict,
+                self.diffusion_model,
+                self.optimizer,
+                self.criterion,
+                self.device,
+                self.train_params,
+            )
+
+        elif model_name == "seq2seq":
+            raise ValueError("The trainer is not yer implemented")
+        else:
+            raise ValueError(f"The model {self.model_name} is not defined")
+
+    def initialise_model(self, model_name):
+        if model_name == "Residual_only":
+            self.model = MLP(**self.model_params["Model"])
+            self.weights_models = self.model.parameters()
+        elif model_name == "Residual_with_attention":
+            params_model = self.model_params["Model"]
+            params_attention = self.model_params["attention"]
+            self.model = MLP_Rolling_attention2(**params_model)
+            self.attention = RollingAttention2(**params_attention)
+            self.weight_model = self.model.parameters()
+            self.weight_attention = self.attention.parameters()
+        elif model_name == "Residual_with_old_attention":
+            params_model = self.model_params["Model"]
+            params_attention = self.model_params["attention"]
+            self.model = MLP_Rolling_attention(**params_model)
+            self.attention = RollingAttention(**params_attention)
+            self.weight_model = self.model.parameters()
+            self.weight_attention = self.attention.parameters()
+        elif model_name == "seq2seq":
+            self.model = Seq2Seq(**self.model_params["Model"])
+        else:
+            raise ValueError(f"The model {self.model_name} is not defined")
+
+    def train(self, train_loader):
+        self.trainer.train(train_loader)

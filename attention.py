@@ -1,11 +1,6 @@
-import torch
-import torch.nn as nn
-import numpy as np
-from layers.model import *
-from layers.rolling_attention import MLP_Rolling_attention, RollingAttention
+from src.layers import MLP_Rolling_attention, RollingAttention
 from torch.utils.data import DataLoader, Dataset
-from utils.datasets import get_dataset
-from utils.training import *
+from src.utils.datasets import get_dataset
 from itertools import chain
 
 torch.manual_seed(64)
@@ -17,7 +12,7 @@ OUTPUT_DIM = 2
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 INPUT_SIZE = 2
 
-PATH = "Seq2Seq.pth"
+PATH = "Seq2Seq_LSTM.pth"
 
 
 class CombinedDataset(Dataset):
