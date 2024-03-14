@@ -87,6 +87,7 @@ class AttentionTrainer(BaseTrainer):
                 noisy_data = self.noise_scheduler.add_noise(
                     batch_data, noise, timesteps
                 )
+                if random.random
                 self.attention_model.reset_history()
                 prediction_unc = self.model(
                     noisy_data, timesteps, self.attention_model
