@@ -1,0 +1,22 @@
+model_type:
+  model_name: zevi
+model:
+  Model:
+    depth: 3
+    size: 256
+    hidden_dim: 800
+    output_dim: 2
+    input_size: 2
+    pos_embed: sinusoidal
+  attention:
+    max_length: 1000
+    input_dim: 2
+    output_dim: 2
+trainer: {}
+dataset:
+  number_data_points: 10000
+  joined: 0
+  name_dataset: dino
+optimizer:
+  lr: 0.0001
+  weight_decay: 5.0e-10

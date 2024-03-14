@@ -1,0 +1,23 @@
+model_type:
+  model_name: Residual_only
+model:
+  depth: 3
+  size: 250
+  hidden_dim: 800
+  output_dim: 2
+  pos_embed: sinusoidal
+  input_size: 2
+trainer:
+  num_epoch: 50
+  batch_size: 250
+  gradient_clip_threshhold: 1
+  eval_frequency: 50
+  sample_size: 3000
+dataset:
+  number_data_points: 10000
+  joined: 0
+  name_dataset: dino
+optimizer:
+  lr: 0.0001
+  weight_decay: 5.0e-10
+optimizer/weight_decay: 5.0e-05

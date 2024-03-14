@@ -1,0 +1,7 @@
+depth : 3 
+size : 250 
+hidden_dim : 800
+output_dim : 2 
+pos_embed : "sinusoidal"
+input_size : 2 
+

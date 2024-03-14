@@ -1,0 +1,12 @@
+# configs/config.yaml
+defaults: 
+  - _self_
+  - model_type : MLP
+  - model: ${model_type}
+  - trainer: ${model_type}
+  - dataset : base 
+  - optimizer : AdamW 
+
+
+
+device : "cpu"

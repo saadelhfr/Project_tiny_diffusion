@@ -1,0 +1,18 @@
+model_type:
+  model_name: AttV1
+model:
+  depth: 3
+  size: 250
+  hidden_dim: 750
+  output_dim: 2
+  pos_embed: sinusoidal
+  input_size: 2
+trainer:
+  depth: 15
+dataset:
+  number_data_points: 10000
+  joined: 0
+  name_dataset: dino
+optimizer:
+  lr: 0.0001
+  weight_decay: 5.0e-10

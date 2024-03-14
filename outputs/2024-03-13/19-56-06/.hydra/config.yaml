@@ -1,0 +1,10 @@
+model_name: Residual_only
+model:
+  depth: 1000
+trainer:
+  model_name: saad
+  device: cpu
+  data_name: saad
+  batch_size: 250
+dataset:
+  name: hello from data

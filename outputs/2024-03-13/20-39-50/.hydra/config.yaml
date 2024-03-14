@@ -1,0 +1,5 @@
+model_type:
+  model_name: Residual_only
+model:
+  model_name: Residual_only
+  depth: 15

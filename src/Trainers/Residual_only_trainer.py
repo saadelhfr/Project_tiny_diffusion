@@ -1,9 +1,9 @@
-
 import os
 import torch
 from tqdm import tqdm
 import numpy as np
 from .BaseTrainer import BaseTrainer
+
 
 class TrainerResildualOnly(BaseTrainer):
     def __init__(
@@ -64,7 +64,12 @@ class TrainerResildualOnly(BaseTrainer):
             print(f"The loss for epoch {epoch+1} is {epoch_loss}")
             if epoch_loss < self.best_loss:
                 self.best_loss = epoch_loss
-                torch.save(self.model.state_dict(), os.path.join(self.checkpoints_dir_path, "Residual_only_best_loss.pth")
+                torch.save(
+                    self.model.state_dict(),
+                    os.path.join(
+                        self.checkpoints_dir_path, "Residual_only_best_loss.pth"
+                    ),
+                )
             progress_bar.close()
 
             if epoch % self.eval_frequency or epoch == self.num_epochs - 1:
@@ -77,7 +82,7 @@ class TrainerResildualOnly(BaseTrainer):
         report = self.train_params
         report["best loss achieved "] = self.best_loss
         self.save_training()
-        self.save_dict_as_table(report , self.model_save_path) 
+        self.save_dict_as_table(report, self.model_save_path)
         self.print_dict_as_table(report)
 
     def sample(self, sample_size):
@@ -90,7 +95,11 @@ class TrainerResildualOnly(BaseTrainer):
                 residual = self.model(sample, t)
             sample = self.noise_scheduler.step(residual, t[0], sample)
         return sample
-    def save_training(self  ):
-        np.save(os.path.join(self.model_save_path , "framse.npy") , self.frames )
-        np.save(os.path.join(self.model_save_path , "losses.npy") , self.losses)
-        torch.save(self.model.state_dict() , os.path.join(self.checkpoints_dir_path,"Residual_only_last_epoch.pth"))
+
+    def save_training(self):
+        np.save(os.path.join(self.model_save_path, "framse.npy"), self.frames)
+        np.save(os.path.join(self.model_save_path, "losses.npy"), self.losses)
+        torch.save(
+            self.model.state_dict(),
+            os.path.join(self.checkpoints_dir_path, "Residual_only_last_epoch.pth"),
+        )

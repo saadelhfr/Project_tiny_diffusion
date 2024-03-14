@@ -47,7 +47,12 @@ class DataSetTinyDiffusion(Dataset):
                             )
                         )
                     else:
-                        self.data_points1.append(self.get_data_from_name(name))
+                        self.data_points1.append(
+                            CombinedDataset(
+                                self.get_data_from_name(name),
+                                self.get_data_from_name(name),
+                            )
+                        )
 
             else:
                 if self.joined:

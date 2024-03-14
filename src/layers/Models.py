@@ -17,25 +17,22 @@ import torch
 class TinyDiffusion:
     def __init__(
         self,
-        model_name: str,
         model_params: Dict[str, Any],
         train_params: Dict[str, Any],
+        optimizer_params: Dict[str, Any],
+        Diffusion_params: Dict[str, Any],
         device: torch.device,
     ):
-        self.model_name = model_name
+        self.model_name = model_params["model_name"]
         self.model_params = model_params
         self.train_params = train_params
-        self.initialise_model(model_name)
-        self.initialise_trainer(model_name)
-        self.diffusion_model = Noise_Scheduler(
-            **self.model_params["Diffusion_Process_params"]
-        )
+        self.Diffusion_params = Diffusion_params
+        self.initialise_model(self.model_name)
+        self.initialise_trainer(self.model_name)
+        self.diffusion_model = Noise_Scheduler(**Diffusion_params)
         self.device = device
-        self.optimizer = torch.optim.AdamW(
-            self.weights_models,
-            lr=self.train_params["learning_rate"],
-            weight_decay=self.train_params["weight_decay"],
-        )
+        self.optimizer_params = optimizer_params
+        self.optimizer = torch.optim.AdamW(self.weights_models, **self.optimizer_params)
         self.criterion = self.train_params["criterion"]
 
     def initialise_trainer(self, model_name):
@@ -85,15 +82,19 @@ class TinyDiffusion:
         elif model_name == "Residual_with_attention":
             params_model = self.model_params["Model"]
             params_attention = self.model_params["attention"]
-            self.model = MLP_Rolling_attention2(**params_model)
             self.attention = RollingAttention2(**params_attention)
+            self.model = MLP_Rolling_attention2(
+                attention_module=self.attention, **params_model
+            )
             self.weight_model = self.model.parameters()
             self.weight_attention = self.attention.parameters()
         elif model_name == "Residual_with_old_attention":
             params_model = self.model_params["Model"]
             params_attention = self.model_params["attention"]
-            self.model = MLP_Rolling_attention(**params_model)
             self.attention = RollingAttention(**params_attention)
+            self.model = MLP_Rolling_attention(
+                attention_module=self.attention, **params_model
+            )
             self.weight_model = self.model.parameters()
             self.weight_attention = self.attention.parameters()
         elif model_name == "seq2seq":
