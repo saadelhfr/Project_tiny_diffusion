@@ -107,10 +107,8 @@ class Noise_Scheduler(nn.Module):
         beta_schedule: str = "linear",
         device="cpu",
     ):
-        super(
-            Noise_Scheduler, self
-        ).__init__()  # Don't forget to call the superclass initializer
-        self.device = torch.device(device)  # Ensure device is a torch.device object
+        super(Noise_Scheduler, self).__init__()
+        self.device = torch.device(device)
         self.num_timesteps = num_timesteps
 
         if beta_schedule == "linear":
@@ -236,7 +234,6 @@ class Noise_Scheduler(nn.Module):
 
         s1 = s1.reshape(-1, 1)
         s2 = s2.reshape(-1, 1)
-
         return s1 * x_start + s2 * x_noise
 
     def __len__(self):

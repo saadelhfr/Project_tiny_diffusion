@@ -9,6 +9,7 @@ from src.utils.manage_data import manage_data_names
 
 @hydra.main(config_path="configs", config_name="config", version_base="1.1")
 def main(cfg: DictConfig):
+    print(cfg)
     device = select_device(cfg.device)
 
     model_name = cfg.model_type.model_name

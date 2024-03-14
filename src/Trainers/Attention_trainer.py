@@ -66,13 +66,13 @@ class AttentionTrainer(BaseTrainer):
             loss_batch = []
             prev_batch = None
             for j, batch in enumerate(train_loader):
-                if self.reset_history and (
-                    prev_batch is None or j % self.len_data == 0
-                ):
-                    self.attention_model.reset_history()
-                    unused_prev_batch = batch[1][0]
-                    prev_batch = torch.randn_like(unused_prev_batch) * self.scale_train
-
+                # if self.reset_history and (
+                #     prev_batch is None or j % self.len_data == 0
+                # ):
+                #     self.attention_model.reset_history()
+                #     unused_prev_batch = batch[1][0]
+                #     prev_batch = torch.randn_like(unused_prev_batch) * self.scale_train
+                #
                 self.optimizer.zero_grad()
                 batch_data = batch[0][0].to(self.device)
                 prev_batch = batch[1][0].to(self.device)
@@ -80,15 +80,24 @@ class AttentionTrainer(BaseTrainer):
                 single_timestep = torch.randint(
                     0, self.noise_scheduler.num_timesteps, (1,)
                 ).item()
+
                 timesteps = torch.full(
-                    (self.batch_size,), single_timestep, dtype=torch.long
+                    (noise.shape[0],), single_timestep, dtype=torch.long
                 )
                 noisy_data = self.noise_scheduler.add_noise(
                     batch_data, noise, timesteps
                 )
-                prediction = self.model(
+                self.attention_model.reset_history()
+                prediction_unc = self.model(
                     noisy_data, timesteps, self.attention_model
                 )  # forward pass
+                self.attention_model.update_history(prev_batch)
+                prediction_cond = self.model(
+                    noisy_data, timesteps, self.attention_model
+                )  # forward pass
+                w = 0.7
+
+                prediction = w * prediction_cond + (1 - w) * prediction_unc
                 loss = self.criterion(prediction, noise)  # compute the loss
                 loss.backward()
                 nn.utils.clip_grad_norm_(
@@ -132,6 +141,7 @@ class AttentionTrainer(BaseTrainer):
     def sample(self, sample_size):
         num_batches = sample_size // self.batch_size
         scale = random.uniform(0.01, 0.5)
+        w = 0.7
         self.model.eval()
         self.attention_model.eval()
         self.attention_model.reset_history()
@@ -145,7 +155,13 @@ class AttentionTrainer(BaseTrainer):
             for _, t in enumerate(timesteps):
                 t_tensor = torch.full((self.batch_size,), t, dtype=torch.long)
                 with torch.no_grad():
+                    hitory = self.attention_model.eval_history
                     residual = self.model(sample, t_tensor, self.attention_model)
+                    self.attention_model.reset_history()
+                    residual_unc = self.model(sample, t_tensor, self.attention_model)
+                    residual = w * residual + (1 - w) * residual_unc
+                    self.attention_model.update_history(hitory)
+
                 sample = self.noise_scheduler.step(residual, t_tensor[0], sample)
             batch_prev = sample
             batch_samples.append(sample.cpu().detach().numpy())
