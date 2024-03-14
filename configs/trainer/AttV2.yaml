@@ -4,5 +4,5 @@ gradient_clip_threshhold : 1
 eval_frequency : 50
 sample_size : 3000
 scale_train : 0.1 
-periodic_resets : 0 
-len_independant_data : 20
+periodic_resets : 400
+len_independant_data : 400

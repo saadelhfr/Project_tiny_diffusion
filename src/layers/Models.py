@@ -25,6 +25,8 @@ class TinyDiffusion:
         Diffusion_params: Dict[str, Any],
         device: str,
     ):
+
+        self.device = device
         self.model_name = model_name
         self.model_params = model_params
         self.train_params = train_params
@@ -35,7 +37,6 @@ class TinyDiffusion:
         self.optimizer = torch.optim.AdamW(self.weights_models, **self.optimizer_params)
 
         self.criterion = torch.nn.MSELoss()
-        self.device = device
         self.initialise_trainer(self.model_name)
 
     def initialise_trainer(self, model_name):
@@ -80,14 +81,14 @@ class TinyDiffusion:
 
     def initialise_model(self, model_name):
         if model_name == "Residual_only":
-            self.model = MLP(**self.model_params)
+            self.model = MLP(**self.model_params).to(self.device)
             self.weights_models = self.model.parameters()
         elif model_name == "Residual_with_attention":
             params_model = self.model_params["Model"]
             params_attention = self.model_params["attention"]
-            self.attention = RollingAttention2(**params_attention)
+            self.attention = RollingAttention2(**params_attention, device=self.device)
             self.model = MLP_Rolling_attention2(
-                attention_module=self.attention, **params_model
+                device=self.device, attention_module=self.attention, **params_model
             )
             self.weight_model = self.model.parameters()
             self.weight_attention = self.attention.parameters()
@@ -95,15 +96,15 @@ class TinyDiffusion:
         elif model_name == "Residual_with_old_attention":
             params_model = self.model_params["Model"]
             params_attention = self.model_params["attention"]
-            self.attention = RollingAttention(**params_attention)
+            self.attention = RollingAttention(**params_attention, device=self.device)
             self.model = MLP_Rolling_attention(
-                attention_module=self.attention, **params_model
+                attention_module=self.attention, **params_model, device=self.device
             )
             self.weight_model = self.model.parameters()
             self.weight_attention = self.attention.parameters()
             self.weights_models = chain(self.weight_model, self.weight_attention)
         elif model_name == "seq2seq":
-            self.model = Seq2Seq(**self.model_params)
+            self.model = Seq2Seq(**self.model_params, device=self.device)
         else:
             raise ValueError(f"The model {self.model_name} is not defined")
 

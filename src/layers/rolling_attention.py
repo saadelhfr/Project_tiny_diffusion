@@ -37,7 +37,9 @@ class RollingAttention(nn.Module):
         # Update history
         x = x.to(self.device)
         current_history = self.train_history if self.training else self.eval_history
-        updated_history = torch.cat((current_history, x), dim=0)[-self.max_length :]
+        updated_history = torch.cat((current_history, x), dim=0)[-self.max_length :].to(
+            self.device
+        )
         if self.training:
             self.train_history = updated_history
         else:
@@ -112,17 +114,17 @@ class RollingAttention2(nn.Module):
 
     def update_history(self, x):
 
-        pos_embed_1 = self.positional_embeder_1(x[:, 0])
-        pos_embed_2 = self.positional_embeder_2(x[:, 1])
+        pos_embed_1 = self.positional_embeder_1(x[:, 0]).to(self.device)
+        pos_embed_2 = self.positional_embeder_2(x[:, 1]).to(self.device)
 
-        x = torch.cat([pos_embed_1, pos_embed_2], dim=-1)
+        x = torch.cat([pos_embed_1, pos_embed_2], dim=-1).to(self.device)
         current_history = self.train_history if self.training else self.eval_history
 
         updated_history = torch.cat((current_history, x), dim=0)[-self.max_length :]
         if self.training:
-            self.train_history = updated_history
+            self.train_history = updated_history.to(self.device)
         else:
-            self.eval_history = updated_history
+            self.eval_history = updated_history.to(self.device)
 
     def forward(self, x):
         # x is the current vector of shape [batch_size, input_dim]

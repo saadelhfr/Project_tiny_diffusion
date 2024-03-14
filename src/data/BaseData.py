@@ -14,7 +14,7 @@ class DataSetTinyDiffusion(Dataset):
         name_dataset=None,
     ):
         super(DataSetTinyDiffusion, self).__init__()
-        self.name_dataset = tuple(list(name_dataset))
+        self.name_dataset = name_dataset
         self.number_data_points = number_data_points
         self.device = device
         self.custom_dataset = custom_dataset
@@ -37,7 +37,6 @@ class DataSetTinyDiffusion(Dataset):
         self.data_points1 = []
         self.data_points2 = []
         if self.name_dataset is not None:
-            print("hello from non non name_dataset")
             if isinstance(self.name_dataset, List):
                 for name in self.name_dataset:
                     if self.joined:
@@ -48,12 +47,7 @@ class DataSetTinyDiffusion(Dataset):
                             )
                         )
                     else:
-                        self.data_points1.append(
-                            CombinedDataset(
-                                self.get_data_from_name(name),
-                                self.get_data_from_name(name),
-                            )
-                        )
+                        self.data_points1.append(self.get_data_from_name(name))
 
             else:
                 if self.joined:

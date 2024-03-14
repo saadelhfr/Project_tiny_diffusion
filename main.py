@@ -4,6 +4,7 @@ from src.data.BaseData import DataSetTinyDiffusion
 import hydra
 from omegaconf import DictConfig
 from src.utils.manage_device import select_device
+from src.utils.manage_data import manage_data_names
 
 
 @hydra.main(config_path="configs", config_name="config", version_base="1.1")
@@ -15,6 +16,7 @@ def main(cfg: DictConfig):
     # Correct way to merge dictionaries and add a new key in Python
     model_config = {**cfg.model, "device": device}
     dataset_config = {**cfg.dataset, "device": device}
+    dataset_config["name_dataset"] = [("dino", ""), ("moons", "")]
     trainer_config = {
         **cfg.trainer,
         "data_name": dataset_config["name_dataset"],
