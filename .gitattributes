@@ -1,3 +1,2 @@
-Seq2Seq2biglrlinearbeta.pth filter=lfs diff=lfs merge=lfs -text
-data/** filter=lfs diff=lfs merge=lfs -text
-data_sequence_all/** filter=lfs diff=lfs merge=lfs -text
+Ouputs filter=lfs diff=lfs merge=lfs -text
+Data filter=lfs diff=lfs merge=lfs -text
