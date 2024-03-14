@@ -23,6 +23,7 @@ class BaseTrainer:
         train_params,
     ):
         self.model_name = model_name
+        self.best_loss = 1000
         self.model = model
         self.optimizer = optimizer
         self.criterion = criterion
@@ -47,6 +48,7 @@ class BaseTrainer:
         print(tabulate(table, headers=headers, tablefmt="grid"))
 
     def save_dict_as_table(self, data_dict, file_path, headers=["Key", "Value"]):
+        file_path = os.path.join(file_path, "report.txt")
         table = [[key, value] for key, value in data_dict.items()]
         table_str = tabulate(table, headers=headers, tablefmt="grid")
 
@@ -56,7 +58,7 @@ class BaseTrainer:
     def create_save_dir(self):
         dat_str = datetime.now().strftime("%Y-%m-%d_%H")
         unique_id = uuid.uuid4().hex[:6]
-        dir_name = f"{self.model_name}_{self.data_name}_date_{dat_str}_{unique_id}"
+        dir_name = f"{self.model_name}_date_{dat_str}_{unique_id}"
         full_path = os.path.join(PROJECT_ROOT, "Outputs", dir_name)
         if not os.path.exists(full_path):
             os.makedirs(full_path)

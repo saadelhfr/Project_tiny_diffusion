@@ -1,4 +1,4 @@
-input_dim : 2
+input_dim : 512
 output_dim : 2 
 max_length : 1000
 size : 256 

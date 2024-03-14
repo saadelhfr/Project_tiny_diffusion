@@ -66,7 +66,9 @@ class AttentionTrainer(BaseTrainer):
             loss_batch = []
             prev_batch = None
             for j, batch in enumerate(train_loader):
-                if self.reset_history and (prev_batch is None or j % len_data == 0):
+                if self.reset_history and (
+                    prev_batch is None or j % self.len_data == 0
+                ):
                     self.attention_model.reset_history()
                     unused_prev_batch = batch[1][0]
                     prev_batch = torch.randn_like(unused_prev_batch) * self.scale_train
@@ -85,7 +87,7 @@ class AttentionTrainer(BaseTrainer):
                     batch_data, noise, timesteps
                 )
                 prediction = self.model(
-                    noisy_data, timesteps, prev_batch, self.attention_model
+                    noisy_data, timesteps, self.attention_model
                 )  # forward pass
                 loss = self.criterion(prediction, noise)  # compute the loss
                 loss.backward()
@@ -113,7 +115,7 @@ class AttentionTrainer(BaseTrainer):
                 )
             progress_bar.close()
 
-            if epoch % self.eval_frequency or epoch == self.num_epochs - 1:
+            if epoch % self.eval_frequency == 0 or epoch == self.num_epochs - 1:
                 sample = self.sample(self.sample_size)
                 sample_obtained = np.concatenate(sample, axis=0)
                 frames.append(sample_obtained)
@@ -136,15 +138,14 @@ class AttentionTrainer(BaseTrainer):
         timesteps = list(range(len(self.noise_scheduler)))[::-1]
         batch_samples = []
         batch_prev = torch.randn((self.batch_size, self.model.input_size)) * scale
+
         for _ in tqdm(range(num_batches)):
             sample = torch.randn(self.batch_size, self.model.output_dim)
             self.attention_model.update_history(batch_prev)
             for _, t in enumerate(timesteps):
                 t_tensor = torch.full((self.batch_size,), t, dtype=torch.long)
                 with torch.no_grad():
-                    residual = self.model(
-                        sample, t_tensor, batch_prev, self.attention_model
-                    )
+                    residual = self.model(sample, t_tensor, self.attention_model)
                 sample = self.noise_scheduler.step(residual, t_tensor[0], sample)
             batch_prev = sample
             batch_samples.append(sample.cpu().detach().numpy())

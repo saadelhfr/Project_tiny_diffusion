@@ -72,7 +72,7 @@ class TrainerResildualOnly(BaseTrainer):
                 )
             progress_bar.close()
 
-            if epoch % self.eval_frequency or epoch == self.num_epochs - 1:
+            if epoch % self.eval_frequency == 0 or epoch == self.num_epochs - 1:
                 sample = self.sample(self.sample_size)
                 frames.append(sample.cpu().detach().numpy())
 
@@ -88,7 +88,8 @@ class TrainerResildualOnly(BaseTrainer):
     def sample(self, sample_size):
         self.model.eval()
         sample = torch.randn(sample_size, self.model.output_dim)
-        timesteps = list(range(len(self.noise_scheduler))).reverse()
+        timesteps = list(range(len(self.noise_scheduler)))
+        timesteps.reverse()
         for _, t in enumerate(tqdm(timesteps)):
             t = torch.from_numpy(np.repeat(t, sample_size)).long()
             with torch.no_grad():

@@ -6,6 +6,7 @@ defaults:
   - trainer: ${model_type}
   - dataset : base 
   - optimizer : AdamW 
+  - Diffusion : base
 
 
 

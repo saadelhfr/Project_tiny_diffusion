@@ -10,11 +10,11 @@ class DataSetTinyDiffusion(Dataset):
         number_data_points,
         device,
         joined,
-        custom_dataset: None,
+        custom_dataset=None,
         name_dataset=None,
     ):
         super(DataSetTinyDiffusion, self).__init__()
-        self.name_dataset = name_dataset
+        self.name_dataset = tuple(list(name_dataset))
         self.number_data_points = number_data_points
         self.device = device
         self.custom_dataset = custom_dataset
@@ -37,6 +37,7 @@ class DataSetTinyDiffusion(Dataset):
         self.data_points1 = []
         self.data_points2 = []
         if self.name_dataset is not None:
+            print("hello from non non name_dataset")
             if isinstance(self.name_dataset, List):
                 for name in self.name_dataset:
                     if self.joined:
@@ -62,10 +63,12 @@ class DataSetTinyDiffusion(Dataset):
                             self.get_data_from_name(self.name_dataset),
                         )
                     )
+                else:
                     self.data_points1.append(self.get_data_from_name(self.name_dataset))
         if self.custom_dataset is not None:
             self.data_points2 = self.custom_dataset
         self.data_points1.extend(self.data_points2)
+        print(self.data_points1)
         self.finale_dataset = ConcatDataset(self.data_points1)
 
     def get_data_from_name(self, name):
@@ -76,13 +79,13 @@ class DataSetTinyDiffusion(Dataset):
         path = name[1]
         if name_str == "mnist":
             return get_dataset(name=name_str, n=self.number_data_points, path=path)
-        elif name == "moons":
+        elif name_str == "moons":
             return get_dataset(name=name_str, n=self.number_data_points)
-        elif name == "dino":
+        elif name_str == "dino":
             return get_dataset(name=name_str, n=self.number_data_points)
-        elif name == "line":
+        elif name_str == "line":
             return get_dataset(name=name_str, n=self.number_data_points)
-        elif name == "circle":
+        elif name_str == "circle":
             return get_dataset(name=name_str, n=self.number_data_points)
         else:
             raise ValueError(

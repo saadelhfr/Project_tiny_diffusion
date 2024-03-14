@@ -1,4 +1,5 @@
 from typing import Dict, Any
+from itertools import chain
 
 from src.Trainers.Attention_trainer import AttentionTrainer
 from src.Trainers.Old_attention_trainer import AttentionTrainerOld
@@ -17,23 +18,25 @@ import torch
 class TinyDiffusion:
     def __init__(
         self,
+        model_name: str,
         model_params: Dict[str, Any],
         train_params: Dict[str, Any],
         optimizer_params: Dict[str, Any],
         Diffusion_params: Dict[str, Any],
-        device: torch.device,
+        device: str,
     ):
-        self.model_name = model_params["model_name"]
+        self.model_name = model_name
         self.model_params = model_params
         self.train_params = train_params
         self.Diffusion_params = Diffusion_params
-        self.initialise_model(self.model_name)
-        self.initialise_trainer(self.model_name)
         self.diffusion_model = Noise_Scheduler(**Diffusion_params)
-        self.device = device
+        self.initialise_model(self.model_name)
         self.optimizer_params = optimizer_params
         self.optimizer = torch.optim.AdamW(self.weights_models, **self.optimizer_params)
-        self.criterion = self.train_params["criterion"]
+
+        self.criterion = torch.nn.MSELoss()
+        self.device = device
+        self.initialise_trainer(self.model_name)
 
     def initialise_trainer(self, model_name):
         if model_name == "Residual_only":
@@ -77,7 +80,7 @@ class TinyDiffusion:
 
     def initialise_model(self, model_name):
         if model_name == "Residual_only":
-            self.model = MLP(**self.model_params["Model"])
+            self.model = MLP(**self.model_params)
             self.weights_models = self.model.parameters()
         elif model_name == "Residual_with_attention":
             params_model = self.model_params["Model"]
@@ -88,6 +91,7 @@ class TinyDiffusion:
             )
             self.weight_model = self.model.parameters()
             self.weight_attention = self.attention.parameters()
+            self.weights_models = chain(self.weight_model, self.weight_attention)
         elif model_name == "Residual_with_old_attention":
             params_model = self.model_params["Model"]
             params_attention = self.model_params["attention"]
@@ -97,8 +101,9 @@ class TinyDiffusion:
             )
             self.weight_model = self.model.parameters()
             self.weight_attention = self.attention.parameters()
+            self.weights_models = chain(self.weight_model, self.weight_attention)
         elif model_name == "seq2seq":
-            self.model = Seq2Seq(**self.model_params["Model"])
+            self.model = Seq2Seq(**self.model_params)
         else:
             raise ValueError(f"The model {self.model_name} is not defined")
 

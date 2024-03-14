@@ -103,7 +103,7 @@ class AttentionTrainerOld(BaseTrainer):
                 )
             progress_bar.close()
 
-            if epoch % self.eval_frequency or epoch == self.num_epochs - 1:
+            if epoch % self.eval_frequency == 0 or epoch == self.num_epochs - 1:
                 sample = self.sample(self.sample_size)
                 sample_obtained = np.concatenate(sample, axis=0)
                 frames.append(sample_obtained)

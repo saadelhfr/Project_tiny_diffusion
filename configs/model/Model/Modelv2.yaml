@@ -2,5 +2,5 @@ depth : 3
 size : 256
 hidden_dim : 800
 output_dim : 2
-pos_embed : "sinusoidal"
+pos_emb : "sinusoidal"
 input_size : 2
