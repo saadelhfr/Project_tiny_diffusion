@@ -74,6 +74,8 @@ class Seq2Seq(nn.Module):
         # Timestamps of shape (batch_size , 1 )
         if len(X.shape) == 2:
             X = X.unsqueeze(0)
+        print("from file " , __file__)
+        print(X.shape)
         batch_size, seq_length, _ = X.shape
         time_embedding = self.time_embedding(Timestamps)  # shape (batch_size , size)
 

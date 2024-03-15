@@ -87,18 +87,18 @@ class AttentionTrainer(BaseTrainer):
                 noisy_data = self.noise_scheduler.add_noise(
                     batch_data, noise, timesteps
                 )
-                if random.random
-                self.attention_model.reset_history()
-                prediction_unc = self.model(
-                    noisy_data, timesteps, self.attention_model
-                )  # forward pass
-                self.attention_model.update_history(prev_batch)
-                prediction_cond = self.model(
-                    noisy_data, timesteps, self.attention_model
-                )  # forward pass
-                w = 0.7
+                if random.random() > 0.3:
+                    self.attention_model.reset_history()
+                    prediction = self.model(
+                        noisy_data, timesteps, self.attention_model
+                    )  # forward pass
+                else:
+                    self.attention_model.update_history(prev_batch)
+                    prediction = self.model(
+                        noisy_data, timesteps, self.attention_model
+                    )  # forward pass
 
-                prediction = w * prediction_cond + (1 - w) * prediction_unc
+                # prediction = w * prediction_cond + (1 - w) * prediction_unc
                 loss = self.criterion(prediction, noise)  # compute the loss
                 loss.backward()
                 nn.utils.clip_grad_norm_(

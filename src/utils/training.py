@@ -120,10 +120,13 @@ class Trainer:
             for batch in train_loader:
                 self.optimizer.zero_grad()
                 batch_data = batch[0].to(self.device)
+                print("from file", __file__ ) 
+                print(batch_data.shape, "form train")   
                 noise = torch.randn_like(batch_data)
                 timesteps = torch.randint(
                     0, self.noise_scheduler.num_timesteps, (batch_data.shape[0],)
                 ).long()
+                timesteps.unsqueeze_(1)
 
                 noisy_data = self.noise_scheduler.add_noise(
                     batch_data, noise, timesteps
