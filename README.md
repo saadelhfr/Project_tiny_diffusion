@@ -1,9 +1,11 @@
 This repo contains python code for the MAP583 project Tiny Diffusion. The repo is based on [Project Tiny Diffusion](https://github.com/dataflowr/Project-tiny-diffusion). In the referenced repo the authors use fourrier featur networks as described in [1](https://arxiv.org/abs/2006.10739) alongside Denoising Diffusion Probabilistic Models as described here [2](https://arxiv.org/abs/2006.11239) to generate simple probability distributions in $\mathcal{R}^{2}$ space. The approach is very straight forward : 
 - The dataset is constructed by sampling points from a known probability distribution. 
 - We add a noise to the sampled points through the classic DDPM approach. 
+
 $$
 \text{fourier}_{\text{scaled}}(x_i) = [\sin(w_0 x_i \cdot \text{scale}), \cos(w_0 x_i \cdot \text{scale}), \sin(w_1 x_i \cdot \text{scale}), \cos(w_1 x_i \cdot \text{scale}), \ldots, \sin(w_{\frac{n}{2}-1} x_i \cdot \text{scale}), \cos(w_{\frac{n}{2}-1} x_i \cdot \text{scale})]
 $$
+
 - The projected points are used to train a neural network to learn the previously added noise .
 - The Simple objective (L2 distance between predicted and added noise) is the function used to optimise the neural network.
 
@@ -12,7 +14,7 @@ The goal of our project is to explore ways to improve on this approach with the 
 
 It is very simple to generate individual MNIST digits ( or rather specific images from the MNIST dataset) by simply considering the image as a probability distribution and sampling from it this is our first approach which yield the following results (example with an image of zero) : 
 
-![MNIST_0]("Reame_assets/0_Readme.png")
+![MNIST_0]("https://github.com/saadelhfr/Project_tiny_diffusion/blob/main/Reame_assets/0_Readme.png")
 
 As we can see the resulting scatter plot stays the same for different sampling processes from the trained model. While these results appear satifying, the model is unable to sample from two different distribution upon which it was trained, for example if the model is provided with data points from the MNIST 0 and MNIST 1 it generates a superposed density where the One and the zero are both represented. We show an example with the moons and dino distributions as they offer a better visual representation of this phenomenon. 
 ![Dino and Moon]("Reame_assets/shuffled_dino_moons.png")
