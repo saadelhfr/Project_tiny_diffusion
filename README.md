@@ -73,7 +73,7 @@ We provide some visualisation of the results for this approach :
 
 Training for a 150 epoch : 
 
-![AttV2Training](readme_assets/output_training_attention.png)
+![AttV2Training](readme_assets/AttV2_training.png)
 
 Sampling 3000 points after a 150 epoch training with a concatenated dataset of dino then moons: 
 
