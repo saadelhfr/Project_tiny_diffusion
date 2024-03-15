@@ -38,6 +38,8 @@ Multiple possible approaches are possible and this is a curated list of our most
 
 The sequence to sequence model that we used is a simple implementation of the model described in [3](https://arxiv.org/abs/1409.3215) . The model is trained to predict the noise added to the input data. However the model was not able to generate any of the distribution it was trained on furthermore the loss was stagnat throughout the training period.  
 
+The model's training and inference didn't yield any notable results and while the code is still available in `src/layers/seq2seq.py` and the trainer is availble through the function `train_seq2seq`in `src/utils/training.py` through the older class `Trainer` it is not included in the new interface of the project. 
+
 
 ### Version One of Attention Implementation
 
@@ -47,11 +49,35 @@ The model is ought to be able to denoise new points conditionned on the state of
 
 while this approach yields good results it is not different than the original model as the attention is not able to capture the state of the space.
 
+We provide some reults for this approach :
+
+Training for a 100 epoch : 
+
+![AttV1Training](readme_assets/AttV1_training.png)
+
+Sampling 3000 points after a 100 epoch training with a concatenated dataset of dino then moons: 
+
+![AttV1Results](readme_assets/Attv1_sampling.png)
+
+As we can notice the Model learns to reproduce the Dino to a certain extend but seems to be unable to reproduce the moons distribution. But we can notice that the model different looking samples where some parts of the dino are reproduced andsome parts of the moons are reproduced. This was an interesting find that motivated us to look more into conditional DDPMs through an attention based mechanism leading us to the next implementation. 
 
 
 ### Version Two of Attention Implementation
 
 In the second version we keep the same idea as the first one but we change the way we calculate the context vector. Intsead of basing the calculation solely on the state of the space we use the state of the space and the state of the input vector. To perhaps allow the model to generate different distributions by "understanding" the difference between the new noised vector and the space generated before. 
 
-While this method was more stable than the first one we still get superposed distributions just as with the base model presented in [Project Tiny Diffusion](https://github.com/dataflowr/Project-tiny-diffusion)
+While this method was more stable than the first one we still get superposed distributions just as with the base model presented in [Project Tiny Diffusion](https://github.com/dataflowr/Project-tiny-diffusion) it is unable to "decide" on a distribution to sample and provide different distributions during inference. 
 
+We provide some visualisation of the results for this approach : 
+
+
+Training for a 150 epoch : 
+
+![AttV2Training](readme_assets/output_training_attention.png)
+
+Sampling 3000 points after a 150 epoch training with a concatenated dataset of dino then moons: 
+
+![AttV1Results](readme_assets/Attv2_sampling.png)
+
+
+As we can see the model is still unable to generate seperate distributions, but when sampling from small sample sizes as with the checkpoints of the training (each 10 epochs the model samples 1000 points) it is able to generate only one distributiion. 

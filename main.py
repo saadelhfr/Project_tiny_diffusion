@@ -2,7 +2,7 @@ from torch.utils.data import DataLoader
 from src.layers.Models import TinyDiffusion
 from src.data.BaseData import DataSetTinyDiffusion
 import hydra
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from src.utils.manage_device import select_device
 from src.utils.manage_data import manage_data_names
 
@@ -17,7 +17,9 @@ def main(cfg: DictConfig):
     # Correct way to merge dictionaries and add a new key in Python
     model_config = {**cfg.model, "device": device}
     dataset_config = {**cfg.dataset, "device": device}
-    dataset_config["name_dataset"] = [("dino", ""), ("moons", "")]
+    print(type(dataset_config["name_dataset"]))
+    resolved = OmegaConf.to_container(dataset_config["name_dataset"], resolve=True)
+    print(type(resolved))
     trainer_config = {
         **cfg.trainer,
         "data_name": dataset_config["name_dataset"],
