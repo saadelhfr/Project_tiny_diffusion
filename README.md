@@ -14,10 +14,10 @@ The goal of our project is to explore ways to improve on this approach with the 
 
 It is very simple to generate individual MNIST digits ( or rather specific images from the MNIST dataset) by simply considering the image as a probability distribution and sampling from it this is our first approach which yield the following results (example with an image of zero) : 
 
-![MNIST_0]("https://github.com/saadelhfr/Project_tiny_diffusion/blob/main/Reame_assets/0_Readme.png")
+![MNIST_0]("readme_assets/0_Readme.png")
 
 As we can see the resulting scatter plot stays the same for different sampling processes from the trained model. While these results appear satifying, the model is unable to sample from two different distribution upon which it was trained, for example if the model is provided with data points from the MNIST 0 and MNIST 1 it generates a superposed density where the One and the zero are both represented. We show an example with the moons and dino distributions as they offer a better visual representation of this phenomenon. 
-![Dino and Moon]("Reame_assets/shuffled_dino_moons.png")
+![Dino and Moon]("readme_assets/shuffled_dino_moons.png")
 
 How can we solve this probem ? i.e. how can we make the model capable of generating from different probability distributions without the need to explicitly define them.  
 
