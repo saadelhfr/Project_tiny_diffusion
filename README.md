@@ -57,7 +57,7 @@ Training for a 100 epoch :
 
 Sampling 3000 points after a 100 epoch training with a concatenated dataset of dino then moons: 
 
-![AttV1Results](readme_assets/Attv1_sampling.png)
+![AttV1Results](readme_assets/Attv1_samling.png)
 
 As we can notice the Model learns to reproduce the Dino to a certain extend but seems to be unable to reproduce the moons distribution. But we can notice that the model different looking samples where some parts of the dino are reproduced andsome parts of the moons are reproduced. This was an interesting find that motivated us to look more into conditional DDPMs through an attention based mechanism leading us to the next implementation. 
 
