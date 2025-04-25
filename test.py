@@ -260,4 +260,69 @@ Which to pick?
 	•	Option A (axis clipping) is the quickest if you just want to zoom in on those 700 points without cutting any outliers out of the data entirely.
 	•	Option B (signed-log transform) is more diagnostic if you suspect power-law or exponential tails: it spaces them out so you can see curvature/deviation from the Normal reference line.
 
-Either approach will let you “see” both the sharp central mass at zero, the negative side, and the really long positive tail in one QQ plot. Let me know if you want any tweaks!
+Either approach will let you “see” both
+
+
+ the sharp central mass at zero,the negative side, and the really long positive tail in one QQ plot. Let me know if you want any tweaks!
+Here’s how you can get perfectly symmetric 5-minute bins in Plotly, with 0 as a bin edge (not the center of a bar):
+
+import numpy as np
+import plotly.graph_objects as go
+
+# 1) bucket size in seconds
+bin_size = 5 * 60  # 300s
+
+# 2) find max absolute delay and round up to a full bin
+max_delay = df['delay_s'].abs().max()
+max_edge  = int(np.ceil(max_delay / bin_size)) * bin_size
+
+# 3) define your bins so that they start at –max_edge and step by bin_size
+xbins = dict(
+    start = -max_edge,
+    end   =  max_edge,
+    size  =  bin_size
+)
+
+# 4) build the histogram, turning off autobinning
+fig = go.Figure(
+    go.Histogram(
+        x       = df['delay_s'],
+        xbins   = xbins,
+        autobinx= False
+    )
+)
+
+# 5) add a zero‐line and tidy up axes
+fig.add_vline(x=0, line_width=1, line_dash="dash", line_color="black")
+
+fig.update_layout(
+    xaxis = dict(
+        title     = "Delay (seconds)",
+        tickmode  = "array",
+        tickvals  = np.arange(-max_edge, max_edge + 1, bin_size),
+        ticktext  = [f"{int(t/60)} min" for t in np.arange(-max_edge, max_edge + 1, bin_size)]
+    ),
+    yaxis = dict(title="Count"),
+    bargap=0.1
+)
+
+fig.show()
+
+Why this works
+	•	xbins.start = -max_edge forces your first bin edge to be exactly -k·300, so that 0 falls exactly on a boundary.
+	•	autobinx=False tells Plotly not to “refine” those bins.
+	•	You get bins like [-600, -300), [-300, 0), [0, 300), [300, 600) … and zero sits cleanly on the join.
+
+If you’d rather use Plotly Express:
+
+import plotly.express as px
+
+fig = px.histogram(
+    df,
+    x    = "delay_s",
+    xbins= dict(start=-max_edge, end=max_edge, size=bin_size)
+)
+fig.update_traces(autobinx=False)
+# …then same layout tweaks as above…
+
+That will give you a histogram symmetric about zero, with 5-minute (300 s) buckets, and 0 as an edge rather than the center of a bar.
