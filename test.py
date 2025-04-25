@@ -110,3 +110,154 @@ When to pick which approach
 	•	Facet: if you really need both the full-range context and the zoomed-view in one figure.
 
 Any of these will let you explore those ~700 points without one or two extreme outliers stretching your axis to infinity. Let me know if you’d like any of these fleshed out further!
+
+Here’s how you can add a QQ-plot in Plotly that both:
+	1.	spans the full negative–positive range of your data, and
+	2.	emphasizes the sharp peak at zero and the long positive tail
+
+You’ll do this in three steps:
+
+⸻
+
+1. Compute the theoretical vs. sample quantiles
+
+Use SciPy’s probplot (or Statsmodels’) to get the “ordered sample quantiles” (osr) and the matching “theoretical quantiles” (osm) from a Normal distribution:
+
+import numpy as np
+import scipy.stats as stats
+
+# drop any NaNs
+data = df['x'].dropna().values
+
+# get theoretical vs. sample quantiles
+osm, osr = stats.probplot(data, dist='norm')[:2]
+
+By default this assumes you’re comparing to a Normal—if you wanted another distribution (e.g. an exponential with a shift), you could pass dist='expon' plus fit=True, but for diagnosing heavy-tails/peakiness vs. a Normal, dist='norm' is most common.
+
+⸻
+
+2. (Option A) Plot raw QQ with axis limits
+
+If you just want the raw QQ but don’t want a couple of extreme points driving your axes, compute sensible limits—e.g. clip to your 1st/99th percentiles of both sets of quantiles—and then pass them to update_xaxes/update_yaxes:
+
+import plotly.graph_objects as go
+
+# determine clip limits from combined quantiles
+all_q = np.concatenate([osm, osr])
+low, high = np.percentile(all_q, [1, 99])
+
+fig = go.Figure()
+
+# scatter of quantiles
+fig.add_trace(go.Scatter(
+    x=osm, y=osr,
+    mode='markers',
+    name='QQ points'
+))
+
+# 45° reference line
+fig.add_trace(go.Scatter(
+    x=[low, high], y=[low, high],
+    mode='lines',
+    name='y = x', line=dict(dash='dash')
+))
+
+fig.update_layout(
+    title="QQ-Plot vs Normal",
+    xaxis_title="Theoretical Quantiles",
+    yaxis_title="Sample Quantiles",
+)
+# clip both axes so you still “see” the full bulk around zero
+fig.update_xaxes(range=[low, high])
+fig.update_yaxes(range=[low, high])
+
+fig.show()
+
+This will give you a QQ-plot where negative quantiles (below zero) and the big positive tail are both visible, but the extreme 1% on each side won’t pull your axes out of view.
+
+⸻
+
+2. (Option B) QQ on a signed-log scale
+
+If you’d rather transform so that each order of magnitude is “evenly spaced” (and negatives stay negative), apply a signed log transform to both sets of quantiles before plotting:
+
+def signed_log(x):
+    return np.sign(x) * np.log1p(np.abs(x))
+
+x_t = signed_log(osm)
+y_t = signed_log(osr)
+
+import plotly.graph_objects as go
+fig = go.Figure()
+
+fig.add_trace(go.Scatter(
+    x=x_t, y=y_t,
+    mode='markers',
+    name='Transformed QQ'
+))
+# 45° line in transformed space
+lims = [min(x_t.min(), y_t.min()), max(x_t.max(), y_t.max())]
+fig.add_trace(go.Scatter(
+    x=lims, y=lims,
+    mode='lines',
+    name='y = x',
+    line=dict(dash='dash')
+))
+
+fig.update_layout(
+    title="QQ-Plot on signed-log Scale",
+    xaxis_title="Theoretical Quantiles (sign·log1p)",
+    yaxis_title="Sample Quantiles (sign·log1p)",
+)
+fig.show()
+
+This has two benefits:
+	•	Your peak around zero stays nicely bunched (log1p stretches small values less).
+	•	Your long positive tail is compressed so you can actually see the pattern of deviations from normality.
+
+⸻
+
+3. Putting it into Plotly Express
+
+If you prefer the shorthand of Plotly Express, you can still do the computations yourself and then hand off to px.scatter:
+
+import plotly.express as px
+
+qq_df = (
+    pd.DataFrame({
+      'theoretical': osm,
+      'sample': osr
+    })
+    # optional: if clipping
+    .assign(
+      theoretical_clipped=lambda d: d['theoretical'].clip(low, high),
+      sample_clipped=lambda d: d['sample'].clip(low, high)
+    )
+)
+
+# raw QQ with clipping
+fig = px.scatter(
+    qq_df,
+    x='theoretical_clipped',
+    y='sample_clipped',
+    title="QQ-Plot with 1–99% clipping",
+    labels={'theoretical_clipped': 'Theoretical Quantiles',
+            'sample_clipped': 'Sample Quantiles'}
+)
+# add identity line
+fig.add_shape(
+    type="line",
+    x0=low, y0=low, x1=high, y1=high,
+    line=dict(dash='dash')
+)
+fig.show()
+
+
+
+⸻
+
+Which to pick?
+	•	Option A (axis clipping) is the quickest if you just want to zoom in on those 700 points without cutting any outliers out of the data entirely.
+	•	Option B (signed-log transform) is more diagnostic if you suspect power-law or exponential tails: it spaces them out so you can see curvature/deviation from the Normal reference line.
+
+Either approach will let you “see” both the sharp central mass at zero, the negative side, and the really long positive tail in one QQ plot. Let me know if you want any tweaks!
