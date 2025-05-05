@@ -120,3 +120,79 @@ Tips for Polish
 ⸻
 
 Would you like a version using Plotly Express or with interactive dropdowns for switching delays?
+
+
+Great — if your dataset looks like this:
+
+datetime	delay_1	delay_2	delay_3
+2023-01-05 14:00:00	…	…	…
+2023-01-12 10:00:00	…	…	…
+
+And you want to:
+	1.	Group by month and year
+	2.	Compute 7 quantiles: [0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.99]
+	3.	Reshape the result into a long format where:
+	•	time_period = YYYY-MM
+	•	delay_type = delay_1, delay_2, delay_3
+	•	quantile is one of the 7 levels
+	•	delay_seconds is the corresponding value
+
+Here’s how to do it:
+
+⸻
+
+Step-by-Step Pandas Code
+
+import pandas as pd
+
+# Sample DataFrame
+# df = pd.read_csv("your_file.csv")  # or however you load it
+# Ensure datetime is a datetime dtype
+df['datetime'] = pd.to_datetime(df['datetime'])
+
+# Step 1: Create time period column
+df['time_period'] = df['datetime'].dt.to_period('M').astype(str)
+
+# Step 2: Define quantiles
+quantile_levels = [0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.99]
+
+# Step 3: Melt the DataFrame into long format
+df_melted = df.melt(id_vars=['datetime', 'time_period'], 
+                    value_vars=['delay_1', 'delay_2', 'delay_3'],
+                    var_name='delay_type',
+                    value_name='delay_seconds')
+
+# Step 4: Group by time period and delay type and calculate quantiles
+result = (
+    df_melted
+    .groupby(['time_period', 'delay_type'])['delay_seconds']
+    .quantile(quantile_levels)
+    .reset_index()
+    .rename(columns={'level_2': 'quantile'})
+)
+
+# Now your `result` DataFrame is in the format:
+# | time_period | delay_type | quantile | delay_seconds |
+
+
+
+⸻
+
+Sample Output Format
+
+time_period	delay_type	quantile	delay_seconds
+2023-01	delay_1	0.01	-400
+2023-01	delay_1	0.10	-120
+2023-01	delay_2	0.50	100
+…	…	…	…
+
+This is the exact format expected by the Plotly heatmap generation function I gave earlier.
+
+⸻
+
+Optional Enhancements
+	•	Add year_month_order column if you want to control plotting order (e.g., use pd.to_datetime(time_period)).
+	•	You can rename delay columns (e.g., 'delay_1' to 'Departure') for cleaner legends and titles.
+
+Would you like the Plotly heatmap code adapted to take this DataFrame directly?
+
