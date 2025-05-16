@@ -1,0 +1,211 @@
+What the cost matrix is and why you need it
+
+A classifier with three possible actions
+
+action	description
++1	predict “buy”
+–1	predict “sell”
+0	abstain / “unsure”
+
+cannot be optimised just by “accuracy”.
+Why? Because skipping a trade is neither right nor wrong — it has its own economic consequence (missed spread, loss of opportunity, lower inventory risk, …).
+To tell the optimisation procedure how bad each outcome is, we write a cost matrix
+
+	true +1	true –1	explanation
+predict +1	0	c_\text{FP}	wrong-side buy
+predict –1	c_\text{FN}	0	wrong-side sell
+skip (0)	c_\text{SKIP}	c_\text{SKIP}	foregone trade
+
+Rows are your actions, columns are the realised truths; each cell is the monetary or utility loss.
+
+⸻
+
+How the matrix creates an optimal threshold band
+	1.	Posterior information
+For each trade you have a statistical signal z (e.g. volatility-scaled price deviation).
+From your class-conditional densities you can compute the likelihood-ratio
+\Lambda(z)=\frac{p(z\mid\text{buy})}{p(z\mid\text{sell})}.
+	2.	Bayes risk minimisation
+The expected cost of each action, conditional on z, is
+\begin{aligned}
+{\Large L(+1\mid z)} &= c_\text{FP}\;\Pr(y=-1\mid z),\\
+{\Large L(-1\mid z)} &= c_\text{FN}\;\Pr(y=+1\mid z),\\
+{\Large L(0\mid z)}  &= c_\text{SKIP}.
+\end{aligned}
+➜ Pick the action with the smallest of the three numbers.
+	3.	Because both losses with prediction depend on the same \Lambda(z), the decision reduces to two numbers derived from the costs:
+\tau_+ \;=\;\frac{c_\text{FP}-c_\text{SKIP}}{c_\text{SKIP}},\qquad
+\tau_- \;=\;\frac{c_\text{SKIP}}{c_\text{FN}-c_\text{SKIP}}.
+and the rule is
+a(z)=
+\begin{cases}
++1 & \text{if }\Lambda(z)>\tau_+\\[4pt]
+0  & \text{if }\tau_- \le\Lambda(z)\le \tau_+\\[4pt]
+-1 & \text{if }\Lambda(z)<\tau_-.
+\end{cases}
+Because \Lambda(z) is monotone in |z| for the symmetric densities we model, there is a single buffer \theta such that
+	•	predict +1 if z>\theta
+	•	skip if |z|\le\theta
+	•	predict –1 if z<-\theta.
+\theta is fully determined by your cost choices.
+
+⸻
+
+Choosing the numbers in practice
+
+business view	translate into costs
+“A wrong-side fill costs about 5× more than missing a trade.”	c_\text{FP}=c_\text{FN}=5,\;c_\text{SKIP}=1
+“We hate false buys (inventory risk) twice as much as false sells.”	c_\text{FP}=2,\;c_\text{FN}=1,\;c_\text{SKIP}=0.2
+“Any skip is unacceptable; just maximise accuracy.”	set c_\text{SKIP} ≫ c_\text{FP},c_\text{FN} → the abstention band collapses to zero and you always act
+“Capital is scarce; we prefer skipping unless edge is ≥ x $.”	make c_\text{SKIP} small relative to the mis-classification loss
+
+Once you specify those numbers, the optimisation (blocked CV or full-sample maximum-likelihood) selects the unique buffer that minimises expected dollar (or utility) loss, given the empirical distributions of your OTC trades.
+
+⸻
+
+Summary in one sentence
+
+The cost matrix is the bridge between statistical evidence and trading economics: it converts “how sure am I that this is a buy?” into “what action makes me lose the least money on average,” and that conversion produces the precise threshold \theta^\star you were looking for.
+
+
+
+
+Below is a drop-in replacement for the “σ-score” we used earlier when all you have is a percentage deviation
+
+p_i \;=\;\frac{\text{exec}_i-\text{mid}_i}{\text{mid}_i}\quad(\text{e.g. +0.23 %= buy-side fill})
+
+and you are dealing with heterogeneous OTC products.
+
+⸻
+
+1 Why percent already solves one half of the problem
+	•	It is dimension-less — a 0.20 % move has the same meaning whether the notional is $1 M or $10 M.
+	•	What percent does not remove is the difference in intrinsic volatility across products and time: a 0.20 % print on a sleepy IRS may be huge; on a crypto derivative it is noise.
+
+So you still want a second scaling that captures “how unusual is this percent move for this product right now”.
+
+⸻
+
+2 Convert percent into a volatility-normalised score (optional but recommended)
+
+Choose one of the two fully statistical scalers:
+
+scaler	formula	comment
+Rolling σ of percent	z = p / σ̂_pct_ul(t)	identical to the σ-score we had, but on percent units.  Fit σ̂ (e.g. 30-min EWMA) inside each CV train fold.
+Empirical rank / z-norm	z = Φ⁻¹(Rank_t(p)-0.5)	transforms the running CDF of percent into N(0,1). No parametric assumption; only needs past data.
+
+If you skip this step, just keep z = p (percent itself) and remember the resulting threshold will be in percent points, not σ-units.
+
+⸻
+
+3 Fit class-conditional densities on z
+
+from sklearn.mixture import GaussianMixture
+
+gmm_buy  = GaussianMixture(n_components=3).fit(z_tr[y_tr==+1, None])
+gmm_sell = GaussianMixture(n_components=3).fit(z_tr[y_tr==-1, None])
+
+z_tr is the vector of percent (or σ-normalised percent) in the training fold; y_tr is the ±1 ground truth.
+
+If you prefer kernel density:
+
+from sklearn.neighbors import KernelDensity
+kde_buy  = KernelDensity(bandwidth=0.04).fit(z_tr[y_tr==+1, None])
+kde_sell = KernelDensity(bandwidth=0.04).fit(z_tr[y_tr==-1, None])
+
+Either way you obtain smooth log-pdfs f_{+}(z), f_{-}(z).
+
+⸻
+
+4 Derive the buffer \theta^{\star} from your cost matrix
+
+Exactly the same algebra as before — the costs decide the Bayes-optimal abstention band:
+
+	true +1	true –1
+predict +1 (buy)	0	c_\text{FP}
+predict –1 (sell)	c_\text{FN}	0
+skip (0)	c_\text{SKIP}	c_\text{SKIP}
+
+	1.	Compute the likelihood ratio on the test fold
+\Lambda(z)=\frac{f_{+}(z)}{f_{-}(z)}\times\frac{\pi}{1-\pi}
+(where \pi is the prior buy probability in the training split).
+	2.	Two constants from the costs
+\tau_{+}=\frac{c_\text{FP}-c_\text{SKIP}}{c_\text{SKIP}},\qquad
+\tau_{-}=\frac{c_\text{SKIP}}{c_\text{FN}-c_\text{SKIP}}.
+	3.	Decision rule
+a(z)=\begin{cases}
++1 & \Lambda(z)>\tau_{+}\\
+0 & \tau_{-}\le\Lambda(z)\le\tau_{+}\\
+-1 & \Lambda(z)<\tau_{-}.
+\end{cases}
+
+Because \Lambda(z) is monotone in |z| for any symmetric density pair, there is a single positive threshold
+
+\boxed{\theta^{\star}}
+
+such that
+
+predict +1  if  z >  θ*
+skip         if |z| ≤ θ*
+predict –1  if  z < –θ*
+
+If you kept z = p, then θ is in percent (e.g. 0.18 %).
+If you used the σ-normalised score, θ* is in σ-units (e.g. 1.25 σ).*
+
+⸻
+
+5 Blocked cross-validation in percent space — pseudo-code
+
+def find_theta_percent(df, costs, grid, n_splits=5):
+    c_fp, c_fn, c_skip = costs
+    gkf = GroupKFold(n_splits)
+    mean_loss = np.zeros_like(grid, dtype=float)
+
+    for tr, te in gkf.split(df, groups=df['block_id']):
+        p_tr = ((df.loc[tr,'exec']-df.loc[tr,'mid'])/df.loc[tr,'mid']).values
+        p_te = ((df.loc[te,'exec']-df.loc[te,'mid'])/df.loc[te,'mid']).values
+
+        # optional σ-normalisation on TRAIN only
+        sig_tr = rolling_sigma(p_tr, df.loc[tr,'timestamp'])
+        sig_te = forward_fill(sig_tr, df.loc[te,'timestamp'])
+        z_tr   = p_tr / sig_tr
+        z_te   = p_te / sig_te
+
+        y_tr   = df.loc[tr,'y_true'].values
+        y_te   = df.loc[te,'y_true'].values
+
+        # fit densities on TRAIN
+        gmm_p = GaussianMixture(3).fit(z_tr[y_tr==+1,None])
+        gmm_m = GaussianMixture(3).fit(z_tr[y_tr==-1,None])
+
+        f_p = np.exp(gmm_p.score_samples(z_te[:,None]))
+        f_m = np.exp(gmm_m.score_samples(z_te[:,None]))
+        pi  = (y_tr==+1).mean()
+        lam = (f_p/f_m)*pi/(1-pi)
+
+        for j, th in enumerate(grid):
+            pred = np.where(z_te> th,  1,
+                   np.where(z_te<-th, -1, 0))
+            loss = np.where(pred==+1, np.where(y_te==+1,0,c_fp),
+                    np.where(pred==-1, np.where(y_te==-1,0,c_fn),
+                                             c_skip))
+            mean_loss[j] += loss.mean()
+
+    mean_loss /= n_splits
+    return grid[np.argmin(mean_loss)]
+
+grid = np.linspace(0,0.5,101) if you keep raw percent, or np.linspace(0,3,61) for σ-units.
+
+⸻
+
+6 What if percent still varies wildly between products?
+
+If one product’s percent deviations have volatility 3× another’s, use the σ-normalised variant.
+If σ-normalisation feels noisy for illiquid legs, use the empirical rank transform (map the past 1 000 deviations to [0,1], then to N(0,1) via Φ⁻¹). All three lead to the same optimisation machinery; only the numerical value of θ changes.
+
+⸻
+
+Take-away
+
+Replace every occurrence of “z-score” in the previous framework by your percent deviation (optionally volatility- or rank-normalised).
+Fit the buy/sell densities and apply the exact same Bayes-risk derivation: the buffer θ pops out automatically, now expressed in percent (or in σ-units of percent) instead of raw price ticks.*
