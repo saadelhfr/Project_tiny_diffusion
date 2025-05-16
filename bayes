@@ -1,0 +1,169 @@
+Below is a fully statistical route to an “act / abstain / opposite-side” decision rule that is defensible under classical Bayes-decision theory and that stays compatible with time-blocked cross-validation.
+
+⸻
+
+0 Notation & goal
+
+symbol	meaning
+d_i	signed deviation = exec price − mid price for trade i
+y_i	truth: +1 = buy-side, –1 = sell-side
+\theta	(scalar) buffer / threshold we want to learn
+action	+1 ⇒ we classify “buy”, –1 ⇒ “sell”, 0 ⇒ skip
+
+We want a rule
+
+a(d; \theta)=
+\begin{cases}
+\;\; +1 & \text{if } d > \theta,\\[4pt]
+\;\;\;0 & \text{if } |d|\le\theta,\\[4pt]
+\;\; -1 & \text{if } d < -\theta,
+\end{cases}
+
+that minimises expected loss under a cost matrix you choose (hit-rate vs. coverage, P&L, etc.).
+
+⸻
+
+1 Scale the raw deviations so one \theta fits every product
+
+Absolute prices differ by orders of magnitude across OTC derivatives.
+Empirically the shape of d_i within a product is fairly stationary after you scale by recent volatility.
+
+z_i  =  (exec_i − mid_i) / σ̂_ul(t_i)        # σ̂: 30-min rolling stdev per product
+
+Good practice Estimate σ̂ inside each training fold so the hold-out block never leaks future volatility.
+
+After this step one common buffer \theta (in “σ-units”) means the same amount of surprise everywhere.
+
+⸻
+
+2 Fit class-conditional densities for the scaled score
+
+Choose one of the two routes — both are straight statistics, no deep nets:
+
+route	estimator	comment
+Semi-parametric	Gaussian Mixture per class, e.g. 2–4 components found by BIC	Handles fat tails; closed-form pdf; uses sklearn.mixture.GaussianMixture.
+Non-parametric	Kernel Density or rolling histogram	No distributional assumptions; pdf from sklearn.neighbors.KernelDensity or scipy.stats.gaussian_kde.
+
+Denote
+
+f_{+}(z)=p(z\mid y=+1),\quad
+f_{-}(z)=p(z\mid y=-1),\quad
+\pi=\Pr(y=+1).
+
+You can pool all products after scaling; if sample size per product is large you may fit one density per product and use a hierarchical prior (β-prior on \pi).
+
+⸻
+
+3 Derive the optimal abstention band from Bayes risk
+
+Let C_{a,y} be your cost of predicting action a when the truth is y.
+A typical choice is
+
+	true +1	true –1
+predict +1	 0 	c_\text{fp}
+predict –1	c_\text{fn}	0
+skip (0)	c_\text{skip}	c_\text{skip}
+
+Then Bayes theory says:
+	•	Compute the likelihood ratio
+
+\Lambda(z)=\frac{f_{+}(z)}{f_{-}(z)}.
+	•	Define two thresholds
+
+\tau_+ \;=\;\frac{c_\text{fp}-c_\text{skip}}{c_\text{skip}},\qquad
+\tau_- \;=\;\frac{c_\text{skip}}{c_\text{fn}-c_\text{skip}}
+
+(after multiplying by the prior odds \frac{\pi}{1-\pi} if costs are symmetric).
+	•	Decision rule
+
+\begin{cases}
++1 &\text{if }\Lambda(z) \;\;>\;\; \tau_+ \\[2pt]
+0  &\text{if }\tau_- \le \Lambda(z)\le \tau_+ \\[2pt]
+-1 &\text{if }\Lambda(z) \;<\; \tau_-
+\end{cases}
+
+Because f_{+},f_{-} are (mixtures of) Gaussians, \Lambda(z) is analytic and monotone in |z|.
+Hence there exists a single positive buffer
+
+\theta^{\star} = \min\{\,|z|:\Lambda(z)\le \tau_- \,\}.
+
+That is exactly the number you were searching for.
+
+⸻
+
+4 Time-blocked cross-validation to estimate \theta^{\star}
+
+import numpy as np
+from sklearn.model_selection import GroupKFold
+from sklearn.mixture import GaussianMixture
+from scipy.stats import gaussian_kde   # if non-parametric
+
+def cv_theta(z, y, blocks, costs, grid, n_splits=5):
+    c_fp, c_fn, c_skip = costs
+    gkf = GroupKFold(n_splits)
+    mean_loss = np.zeros_like(grid, dtype=float)
+
+    for tr, te in gkf.split(z, groups=blocks):
+        # 1. fit densities on training fold
+        z_tr = z[tr]; y_tr = y[tr]
+        gmm_p = GaussianMixture(3).fit(z_tr[y_tr == +1, None])
+        gmm_m = GaussianMixture(3).fit(z_tr[y_tr == -1, None])
+
+        # priors
+        pi = (y_tr == +1).mean()
+        odds = pi / (1 - pi)
+
+        # pdf on test fold
+        z_te = z[te]
+        f_p  = np.exp(gmm_p.score_samples(z_te[:, None]))
+        f_m  = np.exp(gmm_m.score_samples(z_te[:, None]))
+        lam  = (f_p / f_m) * odds
+
+        # 2. evaluate every candidate theta on test fold
+        for j, th in enumerate(grid):
+            pred = np.where(z_te >  th,  1,
+                   np.where(z_te < -th, -1, 0))
+            loss = np.where(pred == +1, np.where(y[te]==+1, 0, c_fp),
+                    np.where(pred == -1, np.where(y[te]==-1, 0, c_fn),
+                                                  c_skip))
+            mean_loss[j] += loss.mean()
+
+    mean_loss /= n_splits
+    return grid[np.argmin(mean_loss)]
+
+Input z is the volatility-scaled score, y is ±1 truth, blocks is your day/hour label, grid is, say, np.linspace(0,3,61).
+
+⸻
+
+5 Putting it in production
+	1.	At the start of each trading session
+	•	Re-fit the ± densities on the latest N days (or use exponential weighting).
+	•	Compute \theta^{\star} once using the closed-form rule or the grid.
+	2.	For every incoming trade
+	•	Z-score the deviation with the live σ-estimate.
+	•	Apply a(z; θ*).
+	3.	Monitor realised hit-rate, skip-rate, and the empirical distribution of z; re-train densities when the shape drifts.
+
+⸻
+
+6 If you really want a Gaussian Process
+	•	Use GP classification (latent prob. of buy vs sell) with a kernel that shares structure across products (additive kernel: product-id kernel ⊕ time kernel).
+	•	The GP outputs p_i=\Pr(y_i=+1\mid\text{features}).
+	•	Replace the symmetric buffer by two probability thresholds τ_{+},τ_{-} derived from the same cost table:
+a(p)=
+\begin{cases}
++1 & p\;\;>\; 1-\frac{c_\text{skip}}{c_\text{fp}}\\[4pt]
+0 & \text{else if}\; \frac{c_\text{skip}}{c_\text{fn}} \le p \le 1-\frac{c_\text{skip}}{c_\text{fp}}\\[6pt]
+-1 & p\;<\; \frac{c_\text{skip}}{c_\text{fn}}
+\end{cases}
+
+The statistical logic (minimise Bayes risk) remains identical; the GP simply gives you calibrated posteriors instead of density ratios.
+
+⸻
+
+Key take-aways
+	•	Scale first (σ-units → one universal buffer).
+	•	Model the distribution of the scaled deviation per class (GMM or KDE).
+	•	Derive \theta^{\star} from Bayes risk, not by brute-force accuracy.
+	•	Validate with blocked CV so you honour time-ordering.
+	•	The same framework accommodates abstention, asymmetric costs, and richer models (GP, hierarchical Bayes) without losing the statistical foundation.
