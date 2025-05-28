@@ -1,0 +1,66 @@
+To efficiently pull out only those points whose timestamps lie within ±48 hours of your query time and whose quantities lie within ±15 % of your query quantity, you can treat this as a 2-D orthogonal range search on your kd-tree:
+	1.	Convert your “within X of” criteria into absolute bounds
+	•	Let
+t_0 = \text{(your query time)},\quad
+q_0 = \text{(your query quantity)}.
+	•	Compute
+t_{\min} = t_0 - 48\text{h},\quad
+t_{\max} = t_0 + 48\text{h},
+q_{\min} = q_0 \times (1 - 0.15),\quad
+q_{\max} = q_0 \times (1 + 0.15).
+	2.	Issue a 2-D rectangular (axis-aligned) range query
+Your kd-tree stores points (q,\;t).  The “box” you want is
+[q_{\min},\,q_{\max}] \;\times\; [\,t_{\min},\,t_{\max}\,].
+A standard kd-tree supports exactly this kind of query in O(n^{1-1/k} + m) time (k=2 here, m is output size).
+	3.	Pseudocode
+
+# Assuming kd_node has attributes:
+#   point = (q, t)
+#   left, right
+#   axis    # 0 for quantity, 1 for time
+def range_search(node, q_min, q_max, t_min, t_max, out):
+    if node is None:
+        return
+    q, t = node.point
+    # Check if this point is inside the box
+    if q_min <= q <= q_max and t_min <= t <= t_max:
+        out.append(node.point)
+    # Decide whether to recurse into left/right children
+    if node.axis == 0:  # splitting on quantity
+        if q_min <= q:
+            range_search(node.left,  q_min, q_max, t_min, t_max, out)
+        if q     <= q_max:
+            range_search(node.right, q_min, q_max, t_min, t_max, out)
+    else:               # splitting on time
+        if t_min <= t:
+            range_search(node.left,  q_min, q_max, t_min, t_max, out)
+        if t     <= t_max:
+            range_search(node.right, q_min, q_max, t_min, t_max, out)
+
+
+	4.	Using a library
+If you’re using, say, SciPy’s KDTree or scikit-learn’s KDTree, you can also do this by passing an L∞ (“max‐norm”) radius in scaled space.  For example, with SciPy:
+
+from scipy.spatial import KDTree
+# Build tree on raw (q, t) data
+tree = KDTree(data)  
+
+# To query rectangular box:
+# We want max{|q - q0|/((1.15-1)*q0), |t - t0|/48h} ≤ 1,
+# but since (1.15-1)*q0 = 0.15*q0 varies per query, simpler to do:
+indices = tree.query_ball_point([q0, t0],
+                                r=[0.15*q0, 48*3600],  # if time is in seconds
+                                p=float('inf'))
+results = data[indices]
+
+(query_ball_point in SciPy supports an array‐shaped r giving a per‐dimension Chebyshev radius.)
+
+⸻
+
+Why this is efficient
+	•	Axis‐aligned range queries on a kd‐tree run in O(\sqrt n + m) on average (for k=2) instead of O(n).
+	•	You never have to examine every point—only those subtrees whose splitting hyperplane intersects your search rectangle.
+
+⸻
+
+Feel free to plug this pattern into your own kd-tree implementation (or your favorite library) and it’ll pull back exactly the points within 48 h and within 15 % of your target quantity in sublinear time. Let me know if you run into any hiccups!
