@@ -1,0 +1,78 @@
+Great! Let’s walk through both parts of your request:
+
+⸻
+
+🧮 1. Mathematical Justification of the Taylor Approximation Error
+
+Original Function:
+
+f(x) = \frac{a x - b}{1 - x}
+
+First-Order Approximation (neglecting x^2 and higher):
+
+f_{\text{approx}}(x) = (a - b)x - b
+
+Relative Error Formula:
+
+To show that the relative error stays below 0.5%, define:
+
+\text{Relative Error} = \left| \frac{f(x) - f_{\text{approx}}(x)}{f(x)} \right|
+
+We want to prove or bound:
+\left| \frac{f(x) - f_{\text{approx}}(x)}{f(x)} \right| \leq 0.005 \quad \text{for all } x \in [0, 0.05]
+
+Since x \in [0, 0.05], we can estimate the size of higher-order terms like x^2, which are at most 0.0025. If we denote the second-order term error as:
+
+E(x) = a x^2
+
+and we assume that |f(x)| is not too close to zero (to avoid huge relative errors), we can write:
+
+\left| \frac{E(x)}{f(x)} \right| \leq \frac{|a| x^2}{|f(x)|}
+
+So, to guarantee \leq 0.005, it’s enough to require:
+
+\frac{|a| \cdot 0.0025}{\min |f(x)|} \leq 0.005
+\quad \Rightarrow \quad
+\min |f(x)| \geq 500 |a| \cdot 0.0025 = 1.25 |a|
+
+If this inequality holds, then your approximation is guaranteed to be within 0.5%.
+
+⸻
+
+🔍 2. Algorithm for Searching Dataset (a, b Columns)
+
+Suppose your dataset has columns: a, b, and x. Here’s a pseudocode-style approach for finding rows close to a target value of f(x).
+
+Step-by-Step:
+
+Preprocessing: Approximate Computation
+
+df["f_approx"] = (df["a"] - df["b"]) * df["x"] - df["b"]
+
+Rough Filter by Target Value
+
+tolerance = 0.005  # 0.5%
+target = desired_quantity  # your target f(x)
+
+# Keep rows within 0.5% of target
+df_filtered = df[
+    (df["f_approx"] >= target * (1 - tolerance)) &
+    (df["f_approx"] <= target * (1 + tolerance))
+]
+
+Refinement (Optional but More Precise): Compute Exact f(x)
+
+df_filtered["f_exact"] = (df_filtered["a"] * df_filtered["x"] - df_filtered["b"]) / (1 - df_filtered["x"])
+
+# Keep only rows where exact f(x) is within desired final tolerance (e.g. 0.2%)
+final_tol = 0.002
+df_final = df_filtered[
+    (df_filtered["f_exact"] >= target * (1 - final_tol)) &
+    (df_filtered["f_exact"] <= target * (1 + final_tol))
+]
+
+This method gives you a fast filter using the linear approximation and then a precise match using the original formula.
+
+⸻
+
+If you’d like, upload your dataset (CSV or Excel), and I’ll run this logic and show you the closest matches live.
