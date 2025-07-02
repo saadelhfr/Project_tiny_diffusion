@@ -1,0 +1,84 @@
+You can view this as a classic “assignment‐with‐dummies” problem: you have two sets
+	•	A of size N,
+	•	B of size M,
+
+and
+	•	a (partial) cost function c(a,b) for pairing a\in A with b\in B,
+	•	an “unmatched” cost u(a) for leaving a alone,
+	•	an “unmatched” cost v(b) for leaving b alone.
+
+You want to pick a collection of disjoint pairs plus singletons so as to minimize total cost.
+
+⸻
+
+1. Reduce to a full assignment via dummy nodes
+	1.	Build a square cost‐matrix of size \,(N+M)\times(N+M):
+	•	Index rows 1\ldots N for the real A, and rows N+1\ldots N+M for “dummy–A” nodes.
+	•	Index columns 1\ldots M for the real B, and columns M+1\ldots M+N for “dummy–B” nodes.
+	2.	Fill in costs
+	•	For 1\le i\le N, 1\le j\le M:
+C_{i,j} =
+\begin{cases}
+c(a_i,b_j), &\text{if that match is allowed},\\
++\infty,   &\text{if matching \(a_i\) to \(b_j\) is forbidden.}
+\end{cases}
+	•	For real a_i to dummy–B nodes (columns M+1\ldots M+N), set
+C_{i,\,M+i} = u(a_i),
+and C_{i,\,M+j} = +\infty for j\neq i.
+	•	For dummy–A rows (N+1\ldots N+M) to real b_j, set
+C_{N+j,\,j} = v(b_j),
+and C_{N+i,\,j} = +\infty for i\neq j.
+	•	For dummy–A to dummy–B, set all costs to 0.
+	3.	Run the Hungarian (a.k.a. Kuh-Munkres) algorithm on this (N+M)\times(N+M) matrix in O((N+M)^3).
+	4.	Interpret the assignment:
+	•	If a real row i is matched to a real column j, you match a_i\leftrightarrow b_j.
+	•	If a real row i is matched to its dummy–B, you leave a_i unmatched (paying u(a_i)).
+	•	If a dummy–A row is matched to real column j, you leave b_j unmatched (paying v(b_j)).
+
+⸻
+
+2. Alternative: Min-cost max-flow formulation
+
+You can also pose it as a network flow problem:
+
+[source] 
+   └─(cap=1,cost=0)─> each a∈A 
+                           ├─(cap=1,cost=c(a,b))─> each b∈B 
+                           └─(cap=1,cost=u(a))───> [sink]
+each b∈B 
+   └─(cap=1,cost=v(b))───> [sink]
+
+	•	Edges
+	•	Source → each a\in A (cap 1, cost 0).
+	•	a\to b whenever matching allowed (cap 1, cost c(a,b)).
+	•	a\to sink (cap 1, cost u(a)).
+	•	b\to sink (cap 1, cost v(b)).
+	•	Goal: send flow of value N+M (or until no more beneficial matches) at minimum total cost.
+
+A standard min‐cost‐flow algorithm (e.g.\ successive shortest augmenting path with potentials) runs in roughly O(F\cdot E\log V), where F\approx N+M, E\approx N\!M + N + M.
+
+⸻
+
+3. Practical implementation
+	•	Python / SciPy:
+
+import numpy as np
+from scipy.optimize import linear_sum_assignment
+
+# Suppose we build C as above, an (N+M)x(N+M) NumPy array.
+row_ind, col_ind = linear_sum_assignment(C)
+total_cost = C[row_ind, col_ind].sum()
+
+
+	•	NetworkX (for min-cost flow):
+
+import networkx as nx
+
+G = nx.DiGraph()
+# add nodes, edges as above...
+flow_dict = nx.max_flow_min_cost(G, 'source', 'sink')
+cost = nx.cost_of_flow(G, flow_dict)
+
+
+
+Both approaches give you the exact minimum‐cost matching plus the optimal choice of which points to leave unmatched.
