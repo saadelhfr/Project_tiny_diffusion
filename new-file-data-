@@ -1,0 +1,82 @@
+Below are four “show-on-one-slide” checks that practitioners in rates/credit desks use when they want to convince themselves (and a risk manager!) that a trade-volume series is effectively capped.  None of them needs more than a few lines of Python/R and they work whatever tenor or expiry bucket you slice the SDR-DTCC data into.
+
+⸻
+
+1 Log–log survival (Zipf) plot
+
+x = np.asarray(vol)                        # positive notional or ticket counts
+s = 1.0 - stats.rankdata(x)/len(x)         # empirical survival F̅(x)
+plt.loglog(x, s, '.', alpha=.4)
+plt.xlabel('Volume'); plt.ylabel('1-F(x)')
+
+	•	Heavy, unbounded tail → straight line on the far right (power-law behaviour).
+	•	Finite end-point → the right-most section bends down toward the x-axis because once you near the ceiling the survival probability collapses.  ￼
+
+Why it’s handy. Everyone in the room “gets” a straight-line vs a curve within seconds, and the plot uses nothing but ranks.
+
+⸻
+
+2 Quantile-spreads (a one-number “cap index”)
+
+Let
+
+\text{CapIndex}=\frac{\max X-\operatorname{Q}{0.99}}{\operatorname{Q}{0.99}} .
+
+If the 99-percentile already sits within, say, 5 % of the absolute maximum across any maturity bucket, that bucket behaves as if it has a hard roof.
+
+q99 = np.quantile(x,0.99)
+cap_index = (x.max()-q99)/q99
+
+CapIndex ≈ 0 → virtually capped;
+CapIndex ≫ 0.2 → plenty of head-room left.
+
+No tail modelling, no graphics—just one scalar you can tabulate by bucket.
+
+⸻
+
+3 Mean-excess (“mean residual life”) plot – but shrink it
+
+Instead of drawing the full curve, pick only two thresholds, e.g. 95 % and 98 %:
+
+def mean_excess(thr): 
+    return (x[x>thr]-thr).mean()
+
+for tau in (0.95, 0.98):
+    u = np.quantile(x,tau)
+    print(tau, mean_excess(u))
+
+	•	If the 98 % excess is markedly smaller than the 95 % excess, the excess function is falling ⇒ finite end-point; if it stays flat or rises → unlimited.  This is just the classic mean-excess diagnostic condensed to two numbers.  ￼ ￼
+
+⸻
+
+4 One-line GPD end-point test
+
+u = np.quantile(x, 0.90)          # pick one high threshold
+y = x[x>u]-u
+xi, loc, sig = stats.genpareto.fit(y, floc=0)   # SciPy
+print("xî=",xi)
+
+	•	\hat\xi<0 → Weibull-tail ⇒ finite upper limit at u-\sigma/\xi.
+	•	\hat\xi\ge 0 → no statistical sign of a cap.
+The sign of one parameter settles the debate.  The method is straight out of EVT textbooks and the estimator is in every stats package.  ￼ ￼
+
+⸻
+
+Putting it together for swaptions
+
+Maturity / payer-receiver wing	CapIndex	Δ Mean-Excess (95→98 %)	ξ̂ (GPD)	Verdict
+1 Y pay	0.03	↓ 42 %	-0.17	Capped
+10 Y rec	0.28	↑ 8 %	+0.05	Unbounded
+…	…	…	…	…
+
+Doing this per tail (payer vs receiver) and per maturity tenor takes only a group-by loop, yet yields a transparent “traffic-light” table you can paste into a deck.
+
+⸻
+
+Why these four?
+	•	Visual gut-check (Zipf plot)
+	•	Single scalar for dashboards (CapIndex)
+	•	Two-point mean-excess for a quick slope test
+	•	Formal EVT parameter for the audit trail
+
+Each is simple, reproducible, and self-explanatory—perfect when you need to justify the call on a live data-feed.
