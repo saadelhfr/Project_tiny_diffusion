@@ -1,0 +1,106 @@
+Below is language-agnostic pseudocode for the contiguous dynamic-programming (DP) solver.
+It returns the minimum-size partition of the sorted input such that each block (a contiguous slice) obeys your three rules and contains ≤ k numbers.
+
+⸻
+
+Helper — legality test for one slice
+
+FUNCTION LEGAL(A, l, r, params):
+    # A is the sorted array
+    # slice is A[l] … A[r-1]   (size = r-l, guaranteed 1 ≤ size ≤ k)
+    x1  ← A[l]                 # first element of the slice
+    G   ← 0                    # running gcd
+
+    # --- rule 3: all large or all small ---------------------------
+    if  (min(A[l..r-1])   ≥ params.lots_to_group)  OR
+        (max(A[l..r-1])   < params.lots_to_group):
+        pass            # ok
+    else:
+        RETURN False
+
+    # --- check every xj in the slice ------------------------------
+    FOR j from l TO r-1:
+        xj   ← A[j]
+
+        # rule 1
+        ratio ← xj / x1
+        IF ratio > params.max_ratio            THEN RETURN False
+        IF ratio does NOT have exactly params.decimals
+           decimal places                      THEN RETURN False
+
+        # rule 2  (update gcd incrementally)
+        G ← gcd(G, xj)
+        q ← xj / G
+        IF q < params.interval_low OR q > params.interval_high
+           THEN RETURN False
+
+    RETURN True
+
+(Change the decimal-digit test if you want “at most” instead of “exactly.”)
+
+⸻
+
+Step 1 – sort and pre-compute legality table
+
+INPUT: array NUMS[0…N−1], integer k, parameter bundle P
+
+A ← sort(NUMS ascending)
+
+CREATE a Boolean table OK[0…N-1][0…N]  # default False
+FOR l from 0 TO N-1:
+    FOR r from l+1 TO min(l+k, N):     # slice size ≤ k
+        OK[l][r] ← LEGAL(A, l, r, P)
+
+Cost: O(N · k · slice_check).
+If you cache the running gcd and reuse earlier work, slice_check is O(slice size), so overall ≈ O(N · k²).
+
+⸻
+
+Step 2 – DP for “minimum number of groups”
+
+INF ← very large
+dp[0…N]   ←  INF      # dp[i] = min groups needed to cover A[i…N-1]
+next[0…N] ← −1
+dp[N]     ← 0         # empty suffix needs 0 groups
+
+FOR i from N−1 DOWNTO 0:
+    FOR r from i+1 TO min(i+k, N):
+        IF OK[i][r]  AND  dp[r] + 1 < dp[i]:
+            dp[i]   ← dp[r] + 1
+            next[i] ← r
+
+Complexity: O(N · k).
+
+⸻
+
+Step 3 – reconstruct the optimal partition
+
+i ← 0
+PARTITION ← empty list
+
+WHILE i < N:
+    j ← next[i]           # end of the chosen group (exclusive)
+    IF j = −1:            # should not happen, fallback to singleton
+        j ← i + 1
+    APPEND A[i…j-1] to PARTITION
+    i ← j
+
+RETURN PARTITION
+
+
+⸻
+
+Big-picture costs & limits
+
+Piece	Time	Space
+Precompute OK	O(N · k²) (worst case)	O(N · k) booleans
+DP + backtrack	O(N · k)	O(N) integers
+
+With N in the low thousands and k ≲ 10, this runs in milliseconds in any mainstream language. If k is large, prune the inner loops early (the first illegal extension breaks that row of OK).
+
+⸻
+
+Usage reminder
+	•	Feed the function the sorted list; the algorithm forces every group to be a contiguous slice of that order.
+	•	Single-element groups are always legal, so the DP never gets stuck.
+	•	Modify LEGAL if you later relax/tweak the decimal or ratio rules—the DP itself stays unchanged.
