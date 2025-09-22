@@ -1,0 +1,80 @@
+Perfect timing — you already have a working engine: PCA on the IV surface, projection of 2008 moves into today’s factor space, and reconstruction. That’s the “proof of concept.” To make this a deep, rapport-de-stage–level project, you now want to layer in mathematical structure and financial meaning.
+
+Here’s how you can extend it, structured so you can both implement quickly and write with depth.
+
+⸻
+
+1. Strengthen the mathematics of the decomposition
+	•	Weighted inner product space: Formalize vega-weighted PCA as PCA in the Hilbert space (\mathbb R^n, \langle x,y\rangle_W=x^\top Wy).
+→ This lets you write down orthogonality conditions \Phi^\top W \Phi = I, which look clean in your report.
+→ You can discuss why weighting changes the eigenfunctions (economically relevant subspace).
+	•	Principal angles: Compute canonical angles between “today’s span” and “2008’s span.”
+→ This quantifies subspace stability (mathematically: small angles ⇒ dynamics live in the same low-dimensional manifold).
+→ Adds rigor and interpretation beyond “reconstruction error looks small.”
+	•	Karhunen–Loève viewpoint: Recast your PCA as a truncated KL expansion of the surface process.
+\Delta w_t(m,T) \approx \sum_{k=1}^K \xi_{t,k}\,\phi_k(m,T).
+→ This is mathematically standard in stochastic process theory, looks “deep,” and connects to finance because w=\sigma^2 T must be convex/increasing.
+
+⸻
+
+2. Enforce financial constraints
+	•	No-arbitrage projection: After shocking, solve
+\min_{\tilde w}\ \|\tilde w - w^{\text{raw}}\|_W^2
+subject to convexity in log-moneyness and monotonicity in maturity.
+→ This is a small quadratic program (QP), easy to implement.
+→ Adds a rigorous “finance layer”: your stresses are guaranteed arbitrage-free.
+	•	Link to Greeks: Show that the PCA loadings correspond roughly to portfolios of vegas. Then when you shock a factor, the PnL change is
+\Delta \text{PnL} \approx \sum_k \xi_k \,\text{(portfolio’s sensitivity to factor $k$)}.
+→ That bridges linear algebra with financial intuition.
+
+⸻
+
+3. Give the factors dynamics
+
+Right now, your replay is static (2008 moves projected into today). To deepen:
+	•	VAR(1) or DFM on factors:
+\xi_{t+1} = A \xi_t + \varepsilon_t, \qquad \varepsilon_t\sim N(0,\Sigma).
+→ This lets you simulate synthetic crisis paths, not just replay one.
+→ Mathematically clean (state-space model, eigenvalues give persistence).
+	•	Regime switching: Crisis vs. calm can be modeled as different A,\Sigma.
+→ Even if you don’t fully implement, describing how Markov switching works shows you understand stochastic factor models.
+
+⸻
+
+4. Analyze spot–IV dependence
+	•	Leverage correlation functions: Estimate
+\ell(\tau) = \mathrm{Corr}(\Delta \log S,\,\Delta w(\text{ATM},\tau)).
+Then check whether your stress reproduces this.
+→ Financially, this is about skew steepening in selloffs.
+→ Mathematically, you can model conditional expectation as linear regression:
+\mathbb E[\Delta w\mid \Delta \log S] = \beta \Delta \log S.
+	•	Joint PCA: Augment your surface with \Delta \log S. Show that one component explains the leverage effect.
+→ Nice story: the factor space encodes “vol–spot coupling.”
+
+⸻
+
+5. Risk & scenario evaluation
+	•	Distributional metrics: Instead of just path replay, frame it as approximating the conditional law of \Delta w.
+→ Use Wasserstein distance between your stressed distribution and historical crisis distribution.
+→ This adds a modern “optimal transport / robust risk” mathematical flavor.
+	•	PnL backtest: Select test strategies (ATM straddle, risk reversal, calendar). Compute RMSE and hit rates of stressed vs. actual PnL.
+→ This anchors your math to real trading relevance.
+
+⸻
+
+6. Narrative you can present
+	1.	Baseline: PCA span is stable across time; 2008 projects well onto today’s basis.
+	2.	Extension 1 (Math): Define weighted Hilbert space, compute principal angles; interpret factor eigenfunctions.
+	3.	Extension 2 (Finance): Add no-arbitrage projection + Greeks interpretation.
+	4.	Extension 3 (Dynamics): Fit simple VAR to factors, simulate synthetic stress paths.
+	5.	Extension 4 (Spot coupling): Test leverage correlation, maybe add spot into PCA.
+	6.	Evaluation: Cross-sectional errors, leverage match, PnL test, arbitrage violations count.
+	7.	Conclusion: Your method is not just a replay, but a financially consistent, mathematically grounded stress engine.
+
+⸻
+
+👉 With just these four extensions (weighted Hilbert space, no-arb projection, factor dynamics, spot coupling), you can already write a ~40–50 page internship report with real math + finance depth.
+
+⸻
+
+Do you want me to draft a concrete “project plan” (like a table with sections, formulas, plots to produce, and what to say in each) so you can structure your report-writing and coding together?
