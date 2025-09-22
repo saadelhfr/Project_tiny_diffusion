@@ -1,0 +1,23 @@
+import numpy as np
+import pandas as pd
+from arch.univariate import ConstantMean, EGARCH, StudentsT
+
+# y: your factor series (e.g., df['pc1']), vix: aligned VIX level (or ΔVIX)
+y = df['pc1'].astype(float).dropna()
+vix = df.loc[y.index, 'VIX'].astype(float)
+
+# Mean: AR(1) handled by ConstantMean + "y.shift(1)" as regressor in the mean x
+X_mean = pd.DataFrame({'lag1': y.shift(1)})
+# Drop the first row with NaN lag
+valid = X_mean.notna().all(axis=1)
+y, X_mean, vix = y[valid], X_mean[valid], vix[valid]
+
+# Variance: EGARCH(1,1) with exogenous regressor (VIX) in the variance equation
+vol = EGARCH(p=1, o=0, q=1, x=vix.values)  # <- exogenous in variance
+
+am = ConstantMean(y, x=X_mean)             # mean = c + φ * y_{t-1}
+am.volatility = vol
+am.distribution = StudentsT()              # heavy tails recommended
+
+res = am.fit(disp="off")
+print(res.summary())
