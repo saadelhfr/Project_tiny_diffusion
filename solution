@@ -1,0 +1,178 @@
+Perfect — here’s a compact, copy-pasteable kit that covers all three:
+	•	fit a tail-aware vine (with asymmetric tails),
+	•	sample back to time series shocks for your AR+GARCH reconstruction,
+	•	test tail dependence to see if the model captures crashes/rallies.
+
+I’ll assume you already have standardized residuals Z (shape T×d, e.g., d=5 for [PC1..PC4, dlogS]) and (optionally) AR means mu_t and GARCH scales sigma_t for each series.
+
+⸻
+
+1) Fit a vine copula (tail-aware)
+
+# pip install pyvinecopulib scipy numpy
+import numpy as np, pyvinecopulib as pv
+from scipy import stats
+
+# --- (A) Optional: residualize PCs on dlogS to remove near-linearity ---
+# If PCj ~ a + b * dlogS with |r| ~ 1, residualize; otherwise skip this block.
+def residualize_on_factor(Z, factor_col=-1):
+    Z = np.asarray(Z); d = Z.shape[1]
+    X = Z[:, factor_col]
+    Zout = Z.copy()
+    Xc = (X - X.mean())  # no intercept -> OK since Z are standardized
+    denom = (Xc @ Xc)
+    for j in range(d):
+        if j == factor_col: continue
+        beta = (Xc @ Z[:, j]) / (denom + 1e-12)
+        Zout[:, j] = Z[:, j] - beta * Xc
+        # re-standardize to var=1
+        Zout[:, j] = (Zout[:, j] - Zout[:, j].mean()) / Zout[:, j].std(ddof=1)
+    return Zout
+
+# Z_res = residualize_on_factor(Z, factor_col=4)  # if column 4 is dlogS
+Z_res = Z  # or keep as-is if not needed
+
+# --- (B) Convert to pseudo-observations (ranks) ---
+def pseudo_obs(col):
+    r = stats.rankdata(col, method="average")
+    return r / (len(col) + 1.0)
+U = np.column_stack([pseudo_obs(Z_res[:, j]) for j in range(Z_res.shape[1])])
+
+# --- (C) Fit a tail-aware R-vine ---
+controls = pv.FitControlsVinecop(
+    family_set=[
+        pv.BicopFamily.student,   # symmetric tail dep
+        pv.BicopFamily.clayton,   # lower-tail dep
+        pv.BicopFamily.gumbel,    # upper-tail dep
+        pv.BicopFamily.gaussian,  # no tail dep
+        pv.BicopFamily.frank      # no tail dep (center)
+    ],
+    rotations=True,                       # allow rotated tails (for negative/asymmetric dep)
+    selection_criterion=pv.FitMethod.aic, # AIC or BIC; AIC often captures tails better
+    parametric_method=pv.ParametricMethod.mle
+)
+vine = pv.Vinecop(U, controls)
+print(vine)  # shows structure + chosen families per edge
+
+Notes
+	•	This learns both the tree structure and the pair-copula family per edge (e.g., Clayton around ΔlogS if lower-tail clustering).
+	•	If the fit keeps picking Gaussian everywhere, temporarily restrict family_set to [student, clayton, gumbel], fit, then re-enable Gaussian/Frank.
+
+⸻
+
+2) Sample back and reconstruct AR+GARCH time series
+
+You’ll draw uniforms from the vine, map each margin back to shock residuals via your empirical quantile function, and then apply AR+GARCH:
+
+x_{t} = \mu^{AR}{t} + \sigma^{GARCH}{t}\, z_{t}^{\text{sim}}.
+
+# --- (A) Helpers: empirical inverse CDF for each margin ---
+def inv_ecdf(sample, u):
+    s = np.sort(sample)
+    # vectorized piecewise-linear interpolation of empirical quantiles
+    x = (len(s) - 1) * np.clip(u, 1e-6, 1 - 1e-6)
+    lo = np.floor(x).astype(int); hi = np.ceil(x).astype(int)
+    w = x - lo
+    return (1 - w) * s[lo] + w * s[hi]
+
+# --- (B) Simulate M scenarios of T steps (iid across t under historical copula) ---
+# If you want path-dependence via AR/GARCH, you usually: simulate shocks z_t first (iid),
+# then feed them sequentially through your AR+GARCH recursions to get x_t.
+def simulate_shocks(vine, Z_reference, T_steps, M_paths, rng=None):
+    rng = np.random.default_rng() if rng is None else rng
+    # Draw all uniforms first: (T_steps*M_paths) x d, then reshape per path/time
+    Usim = vine.simulate(T_steps * M_paths, seeds=[int(rng.integers(1e9))])
+    d = Z_reference.shape[1]
+    Zsim = np.empty_like(Usim)
+    for j in range(d):
+        Zsim[:, j] = inv_ecdf(Z_reference[:, j], Usim[:, j])
+    # reshape to (M_paths, T_steps, d)
+    return Zsim.reshape(M_paths, T_steps, d)
+
+# Example reconstruction for one series j with AR(1)-GARCH(1,1):
+def reconstruct_series_from_shocks(ph, c0, a0, a1, b1,  # AR and GARCH params
+                                   x0, h0,             # initial AR state and variance
+                                   z_path):            # length T array of shocks
+    T = len(z_path)
+    x = np.empty(T); h = np.empty(T)
+    x_prev, h_prev = x0, h0
+    for t in range(T):
+        # GARCH variance recursion: h_t = a0 + a1 * eps_{t-1}^2 + b1 * h_{t-1}
+        # eps_{t-1} = x_{t-1} - ph * x_{t-2} ... (simplified; use your actual spec)
+        # Simpler if you already have mu_t and sigma_t series computed externally:
+        #   x_t = mu_t + sigma_t * z_t
+        h_t = a0 + a1 * (0.0 if t==0 else (x[t-1] - ph * (0.0 if t==1 else x[t-2]))**2) + b1 * h_prev
+        sigma_t = np.sqrt(max(h_t, 1e-12))
+        mu_t = ph * (x_prev)  # AR(1) mean; replace by your mu_t[t]
+        x_t = mu_t + sigma_t * z_path[t]
+        x[t], h[t] = x_t, h_t
+        x_prev, h_prev = x_t, h_t
+    return x, h
+
+# In practice, you already have per-series mu_t and sigma_t from your fitted AR+GARCH (on historical sample).
+# Then reconstruction is simply: x_t = mu_t + sigma_t * z_t_sim for each t, per series.
+
+Practical advice
+	•	Most users compute μ_t and σ_t from their fitted AR+GARCH on today’s state, then generate only z_t from the copula and apply x_t = μ_t + σ_t * z_t.
+	•	If you want regimes (e.g., VIX-conditioned), fit two vines (low-VIX, high-VIX) and sample from the one you want to stress.
+
+⸻
+
+3) Check tail dependence (does it capture tails?)
+
+We’ll compare empirical vs model lower/upper joint tail probabilities for selected pairs (e.g., PC1 vs dlogS). Optionally, add a Rosenblatt PIT check.
+
+# --- (A) Co-exceedance stats at several tail levels ---
+def tail_coexceedance_table(U, model, q_list=(0.05, 0.02, 0.01), pairs=None,
+                            nsim=200_000, seed=42):
+    rng = np.random.default_rng(seed)
+    d = U.shape[1]
+    if pairs is None:
+        pairs = [(i, j) for i in range(d) for j in range(i+1, d)]
+    Usim = model.simulate(nsim, seeds=[int(rng.integers(1e9))])
+    rows = []
+    for (i, j) in pairs:
+        for q in q_list:
+            empL = np.mean((U[:, i] < q) & (U[:, j] < q))
+            empU = np.mean((U[:, i] > 1 - q) & (U[:, j] > 1 - q))
+            modL = np.mean((Usim[:, i] < q) & (Usim[:, j] < q))
+            modU = np.mean((Usim[:, i] > 1 - q) & (Usim[:, j] > 1 - q))
+            lamL = empL / q if q > 0 else np.nan
+            lamU = empU / q if q > 0 else np.nan
+            lamL_m = modL / q if q > 0 else np.nan
+            lamU_m = modU / q if q > 0 else np.nan
+            rows.append({
+                "pair": f"{i}-{j}", "q": q,
+                "emp_lower": empL, "mod_lower": modL, "lambdaL_emp": lamL, "lambdaL_mod": lamL_m,
+                "emp_upper": empU, "mod_upper": modU, "lambdaU_emp": lamU, "lambdaU_mod": lamU_m
+            })
+    return rows
+
+U = np.column_stack([pseudo_obs(Z_res[:, j]) for j in range(Z_res.shape[1])])
+tail_stats = tail_coexceedance_table(U, vine, q_list=(0.05,0.02,0.01), pairs=[(0,4),(1,4),(2,4),(3,4)])
+for r in tail_stats:
+    print(r)
+
+Interpretation
+	•	For a good fit, mod_lower should be close to emp_lower (especially for pairs with ΔlogS).
+	•	If mod_lower << emp_lower → the model underestimates joint crashes: allow Clayton (and rotations) or use t with smaller ν.
+	•	If lower tails are good but upper tails off → ensure Gumbel is allowed (and rotated if signs flip).
+
+# --- (B) (Optional) Rosenblatt transform check ---
+# For a vine, use the model’s cdf to transform U→R where R should be i.i.d. Uniform(0,1).
+# pyvinecopulib exposes PIT via h-functions; a simple proxy is to check PITs of pairwise conditional cdfs or run a pseudo-likelihood PIT.
+# Quick practical alternative: compare Kendall’s tau and tail co-exceedances across real vs simulated U; if both match, you’re usually fine.
+
+
+⸻
+
+Quick “defaults” that work well
+	•	Margins: always use pseudo-observations + empirical inverse CDF when mapping back.
+	•	Families: start with {student, clayton, gumbel} + rotations=True. Add Gaussian/Frank later if AIC insists.
+	•	Regimes: if tails strengthen in high VIX, fit two vines and simulate conditional on regime.
+	•	Near-collinearity: residualize PCs on ΔlogS (or make ΔlogS the hub in a star-vine).
+	•	Reconstruction: x_t = μ_t + σ_t * z_t (from your AR+GARCH); then rebuild the vol surface with today’s PCA basis; enforce no-arb before pricing.
+
+⸻
+
+If you want, paste a tiny anonymized slice of your Z (e.g., 3000×5) and which column is ΔlogS; I’ll sketch exactly which pairs pick Clayton/t and print the tail table so you can see where the model is under/over-capturing extremes.
