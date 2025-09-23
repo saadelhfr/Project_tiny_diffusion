@@ -1,0 +1,77 @@
+You’re seeing “price explosions” because the quick fix (point-wise flooring vol/variance to be >0) creates tiny, sharp k/T-spikes in the surface. Those are invisible in factor/QQ plots but blow up option prices once you (a) convert to σ(k,T)=√(w/T) and (b) interpolate/extrapolate across strikes/maturities.
+
+The cure is: stop clipping; instead do a global projection/repair of the total-variance surface that (i) keeps you close to the raw reconstruction, (ii) enforces all static-arb constraints, and (iii) smooths the surface so there are no micro-spikes.
+
+Below is an exact, practical recipe.
+
+⸻
+
+Why flooring causes explosions (quick intuition)
+	•	Flooring at a few nodes turns tiny negative w into a positive step.
+	•	After √(·)/T and interpolation, that step becomes a kink → local density spikes → far-OTM call/put prices jump.
+	•	With small T (e.g., 1M), any irregularity in w is magnified in σ and then in prices (vega is largest around ATM).
+
+⸻
+
+What to do instead (robust repair of w)
+
+Let w_{\text{raw}}(k,T)=w_0(k,T)+B_{\text{today}}(k,T)\,\Delta s be your reconstructed total variance on a fixed log-moneyness grid k\in\{k_1<\dots<k_M\} and maturities T\in\{T_1<\dots<T_N\}.
+
+Project to the nearest admissible surface:
+\min_{w}\ \sum_{i,j} \alpha_{ij}\,\big[w_{ij}-w_{\text{raw},ij}\big]^2
+\;+\;\lambda_k \sum_{j}\!\sum_{i} (\Delta^2_k w_{ij})^2
+\;+\;\lambda_T \sum_{i}\!\sum_{j} (\Delta^2_T w_{ij})^2
+subject to, for all grid points:
+	1.	Positivity: w_{ij} \ge \varepsilon_T with \varepsilon_T = \varepsilon_0\,T_j. (E.g., \varepsilon_0=10^{-8} ⇒ σ_min ≈ 10^{-4}.)
+	2.	Calendar monotonicity: \Delta_T w_{i,j} := w_{i,j+1}-w_{i,j} \ge 0.
+	3.	Strike-convexity (no butterfly): \Delta^2_k w_{i,j} := w_{i-1,j}-2w_{i,j}+w_{i+1,j} \ge 0.
+(This enforces convexity of prices when you later interpolate linearly in price or w across k.)
+	4.	Wing slope caps (Lee bounds):
+\frac{w_{M,j}-w_{m,j}}{k_M-k_m} \le 2-\delta,
+\quad
+\frac{w_{m,j}-w_{1,j}}{k_m-k_1} \le 2-\delta
+for chosen wing anchors k_1\ll0, k_M\gg0 (or enforce locally on last intervals). Take \delta\approx 0.05.
+	5.	(Optional) Temporal smoothness: penalize (\Delta_T^2 w)^2 as above to kill “saw-tooth” in T.
+	6.	(Optional) Leverage correction: if you know you under/over-react to \Delta \log S, add a deterministic slice
+w \leftarrow w + \Gamma(k,T)\,\Delta\log S before the projection. (Pre-fit \Gamma by OLS.)
+
+Use larger weights \alpha_{ij} near ATM and liquid tenors so the repair preserves those best.
+
+Important: Do not clip nodes individually. Let the optimizer move the surface minimally to satisfy all constraints and smoothness.
+
+⸻
+
+Minimal implementation sketch (cvxpy)
+	•	Decision vector: all w_{ij} stacked.
+	•	Build sparse finite-difference matrices for \Delta_k,\Delta^2_k,\Delta_T,\Delta^2_T.
+	•	Quadratic objective (L2 closeness + Tikhonov smoothness).
+	•	Linear inequality constraints (monotone, convex, Lee slopes, positivity).
+	•	Solve with OSQP.
+
+(If you want code, say the grid sizes and I’ll give a ready cvxpy snippet you can paste.)
+
+⸻
+
+Additional guardrails to stop extremes
+	1.	Interpolate properly: across k use piecewise-linear in price (or in w), not in σ. Across T use monotone interpolation in total variance.
+	2.	Wing extrapolation: beyond your k-grid, linear in w with slopes capped at Lee’s bound. Don’t extrapolate σ directly.
+	3.	Shock winsorizing (factor space): clip factor shocks at, say, 3–4 historical σ before reconstruction (or scale them to match your empirical POT tail). This prevents a single path from forcing the projector into extreme wings.
+	4.	ATM anchor: before projection, re-anchor the ATM level per maturity to your intended ATM move (e.g., match \Delta w(0,T) to the model’s ATM factor). This keeps prices from drifting due to tiny ATM mis-calibration.
+	5.	Numerical floor by T: the positivity floor should scale with T: w_{\min}(T)=\varepsilon_0\,T. A constant floor in σ is a constant floor in w/T and can distort short maturities.
+
+⸻
+
+Quick triage checklist (run once to locate the culprit)
+	•	Plot \Delta_k w and \Delta^2_k w heatmaps before/after projection. Any big isolated values? That’s where prices explode.
+	•	Check wing slopes (w(k_{\text{wing}})-w(k_0))/(k_{\text{wing}}-k_0). Are they >~2? Cap them.
+	•	Compare ATM 1M w series (real vs sim). If ATM is fine but prices still explode, it’s almost always a wing convexity artifact.
+	•	Reprice your “exploding” day with the repaired surface; vega-normalize the price change to verify the fix.
+
+⸻
+
+Bottom line
+	•	Flooring (positivity) alone is not enough and often creates price spikes.
+	•	Replace it with a global projection in total-variance space that enforces positivity + calendar + strike-convexity + wing bounds, with small smoothness penalties.
+	•	Interpolate in price or total variance, extrapolate linearly in w, and scale your floor with T.
+
+If you share your grid sizes (number of k’s and T’s), I can give you a concrete cvxpy implementation of this projector tailored to your arrays.
