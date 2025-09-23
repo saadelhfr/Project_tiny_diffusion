@@ -1,0 +1,131 @@
+Here’s a tight, copy-pasteable way to fit tail-aware copulas with pyvinecopulib (Python) that actually capture crash/rally co-moves.
+
+⸻
+
+0) Setup & inputs
+	•	Input data: your standardized residuals (after AR–GARCH), shape (T, d) for d=5 (PC1–PC4, ΔlogS).
+	•	Don’t Cholesky-whiten before a copula; use ranks (pseudo-observations) so margins can be anything.
+
+import numpy as np, pyvinecopulib as pv
+from scipy import stats
+
+# Z: T x d standardized residuals, after any residualization (e.g., PCs ~ ΔlogS)
+def pseudo_obs(col):
+    r = stats.rankdata(col, method="average")
+    return r / (len(col) + 1.0)
+
+def to_pobs(Z):
+    return np.column_stack([pseudo_obs(Z[:,j]) for j in range(Z.shape[1])])
+
+U = to_pobs(Z)   # U in (0,1)^d
+
+
+⸻
+
+1) Fit a tail-aware R-vine
+
+Let the algorithm pick the best pair-copula per edge, including t (symmetric tails) and Clayton/Gumbel (asymmetric tails) with rotations (to capture negative/upper/lower tails).
+
+controls = pv.FitControlsVinecop(
+    family_set=[
+        pv.BicopFamily.student,   # symmetric tail dep
+        pv.BicopFamily.clayton,   # lower-tail dep
+        pv.BicopFamily.gumbel,    # upper-tail dep
+        pv.BicopFamily.gaussian,  # no tail dep
+        pv.BicopFamily.frank      # no tail dep (but flexible center)
+    ],
+    rotations=True,                   # allow 90/180/270° (handles signs/asymmetry)
+    selection_criterion=pv.FitMethod.aic,
+    parametric_method=pv.ParametricMethod.mle
+)
+
+vine = pv.Vinecop(U, controls)  # structure + families + params are selected
+print(vine)                     # shows tree structure and chosen families
+
+Tip: If you want a simpler global model first, restrict family_set=[pv.BicopFamily.student, pv.BicopFamily.gaussian] to compare “t vs Gaussian only.”
+
+⸻
+
+2) Quick tail-fit diagnostics (does it capture crashes?)
+
+Compute empirical vs model co-exceedances in tails; this is the most practical check.
+
+def tail_stats(U, model, pairs=None, q_list=(0.05, 0.02, 0.01), nsim=200_000, seed=7):
+    rng = np.random.default_rng(seed)
+    if pairs is None:
+        d = U.shape[1]
+        pairs = [(i,j) for i in range(d) for j in range(i+1,d)]
+    Usim = model.simulate(nsim, seeds=[int(rng.integers(1e9))])
+    out = []
+    for (i,j) in pairs:
+        for q in q_list:
+            empL = np.mean((U[:,i] < q) & (U[:,j] < q))
+            empU = np.mean((U[:,i] > 1-q) & (U[:,j] > 1-q))
+            modL = np.mean((Usim[:,i] < q) & (Usim[:,j] < q))
+            modU = np.mean((Usim[:,i] > 1-q) & (Usim[:,j] > 1-q))
+            out.append(((i,j), q, empL, modL, empU, modU))
+    return out
+
+stats_tbl = tail_stats(U, vine)
+for (i,j), q, empL, modL, empU, modU in stats_tbl:
+    print(f"pair {i}-{j} | q={q:.2%} | lower emp={empL:.4f} vs model={modL:.4f} | upper emp={empU:.4f} vs model={modU:.4f}")
+
+	•	If model lower-tail probs are too small vs empirical for pairs with ΔlogS → allow Clayton (and rotated Clayton for negative dependence) or push toward t with lower ν by narrowing family_set.
+	•	If upper tails are heavier → ensure Gumbel is allowed.
+
+⸻
+
+3) Regime (VIX) versions — optional but powerful
+
+Fit two vines: low-VIX vs high-VIX. You’ll see tail parameters strengthen in high VIX.
+
+low_mask  = (vix <= 20)
+high_mask = (vix >= 25)
+
+vine_low  = pv.Vinecop(U[low_mask],  controls)
+vine_high = pv.Vinecop(U[high_mask], controls)
+
+print("LOW regime");  print(vine_low)
+print("HIGH regime"); print(vine_high)
+
+# Compare tail stats per regime
+_ = tail_stats(U[low_mask],  vine_low)
+_ = tail_stats(U[high_mask], vine_high)
+
+
+⸻
+
+4) Simulate shocks & map back to series
+
+Vines simulate uniforms. Map them to your residual scales with empirical quantiles (keeps real-world skew/fat-tails).
+
+def inv_ecdf(sample, u):
+    s = np.sort(sample)
+    x = (len(s)-1) * np.clip(u, 1e-6, 1-1e-6)
+    lo = np.floor(x).astype(int); hi = np.ceil(x).astype(int)
+    w = x - lo
+    return (1-w)*s[lo] + w*s[hi]
+
+npath = 50_000
+Usim  = vine.simulate(npath)
+Zsim  = np.column_stack([inv_ecdf(Z[:,j], Usim[:,j]) for j in range(Z.shape[1])])
+
+Then reconstruct each factor with your mean_AR + sigma_GARCH * Zsim[:,j], rebuild the surface with today’s PCA basis, enforce no-arb, and price.
+
+⸻
+
+5) Common gotchas (and fixes)
+	•	Margins: always fit on pseudo-obs (ranks). Don’t assume Normal/t margins unless you checked.
+	•	Near-collinearity: if PC1 ~ ΔlogS nearly linear, residualize PCs on ΔlogS first; then fit the vine on [PCres…, ΔlogS].
+	•	Over-Gaussian: if the fit picks Gaussian everywhere, restrict family_set to {student, clayton, gumbel} initially to force tail-aware families; then re-open the set.
+	•	Negative dependence: you need rotations=True so the library uses rotated Clayton/Gumbel to capture lower/upper tails with negative signs.
+
+⸻
+
+6) If you prefer a single (non-vine) copula
+
+pyvinecopulib is for vines. For a single t-copula in d-D, use statsmodels’ StudentTCopula on pseudo-obs. It gives closed-form tail-dependence λ and is simpler, but cannot do asymmetric tails; use a vine when asymmetry matters.
+
+⸻
+
+Want me to tailor the family_set and a quick report (empirical vs model tail co-exceedances at 5%, 2%, 1%) for your exact residuals? If you paste a small matrix (T×5), I’ll run the diagnostics and point to which pairs need Clayton vs t.
